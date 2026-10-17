@@ -1,0 +1,131 @@
+{
+  "spending_rules": [
+    {
+      "patterns": ["*dining*", "*restaurant*", "*cafe*", "*coffee*", "*bar*", "*fast food*", "*takeaway*", "*take away*"],
+      "parent_id": "cat_food",
+      "budget_group": "wants",
+      "default_name": "Food & Dining"
+    },
+    {
+      "patterns": ["*grocery*", "*groceries*", "*supermarket*", "*food:supermarket*"],
+      "parent_id": "cat_groceries",
+      "budget_group": "needs",
+      "default_name": "Groceries"
+    },
+    {
+      "patterns": ["*utilities*", "*electric*", "*electricity*", "*gas*", "*water*", "*internet*", "*broadband*", "*mobile*", "*phone*"],
+      "parent_id": "cat_bills",
+      "budget_group": "needs",
+      "default_name": "Bills & Utilities"
+    },
+    {
+      "patterns": ["*auto*", "*car*", "*fuel*", "*petrol*", "*gasoline*", "*parking*", "*toll*", "*transit*", "*public transport*"],
+      "parent_id": "cat_transport",
+      "budget_group": "needs",
+      "default_name": "Transportation"
+    },
+    {
+      "patterns": ["*health*", "*medical*", "*doctor*", "*dentist*", "*pharmacy*", "*chemist*", "*fitness*", "*gym*"],
+      "parent_id": "cat_health",
+      "budget_group": "needs",
+      "default_name": "Health & Wellness"
+    },
+    {
+      "patterns": ["*insurance*", "*bank fee*", "*bank charges*", "*finance charge*", "*interest charge*"],
+      "parent_id": "cat_fees",
+      "budget_group": "needs",
+      "default_name": "Fees & Charges"
+    },
+    {
+      "patterns": ["*housing*", "*rent*", "*mortgage*", "*rates*", "*home repair*", "*maintenance*"],
+      "parent_id": "cat_housing",
+      "budget_group": "needs",
+      "default_name": "Housing"
+    },
+    {
+      "patterns": ["*education*", "*tuition*", "*school*", "*course*"],
+      "parent_id": "cat_education",
+      "budget_group": "needs",
+      "default_name": "Education"
+    },
+    {
+      "patterns": ["*entertainment*", "*movies*", "*streaming*", "*hobbies*", "*games*"],
+      "parent_id": "cat_entertainment",
+      "budget_group": "wants",
+      "default_name": "Entertainment"
+    },
+    {
+      "patterns": ["*shopping*", "*clothing*", "*electronics*", "*gadgets*", "*household*", "*furniture*"],
+      "parent_id": "cat_shopping",
+      "budget_group": "wants",
+      "default_name": "Shopping"
+    },
+    {
+      "patterns": ["*gift*", "*charity*", "*donation*"],
+      "parent_id": "cat_gifts",
+      "budget_group": "giving",
+      "default_name": "Gifts & Donations"
+    },
+    {
+      "patterns": ["*personal care*", "*hair*", "*salon*", "*beauty*", "*cosmetics*"],
+      "parent_id": "cat_personal",
+      "budget_group": "personal",
+      "default_name": "Personal Care"
+    }
+  ],
+  "income_rules": [
+    {
+      "patterns": ["*salary*", "*wages*", "*paycheck*", "*employment*", "*bonus*"],
+      "parent_id": "cat_income_employment",
+      "budget_group": "income",
+      "default_name": "Employment Income"
+    },
+    {
+      "patterns": ["*dividend*", "*interest*", "*rental*", "*investment income*", "*capital gain*"],
+      "parent_id": "cat_income_investment",
+      "budget_group": "income",
+      "default_name": "Investment Income"
+    },
+    {
+      "patterns": ["*business income*", "*freelance*", "*consulting*"],
+      "parent_id": "cat_income_selfemploy",
+      "budget_group": "income",
+      "default_name": "Self-Employment Income"
+    },
+    {
+      "patterns": ["*pension*", "*social security*", "*government*", "*allowance*", "*tax refund*"],
+      "parent_id": "cat_income_government",
+      "budget_group": "income",
+      "default_name": "Government & Support"
+    },
+    {
+      "patterns": ["*other income*", "*gift received*", "*windfall*"],
+      "parent_id": "cat_income_other",
+      "budget_group": "income",
+      "default_name": "Other Income"
+    }
+  ],
+  "rule_mining_store_prefixes": [
+    "Expenses:Food & Groceries:Supermarket:",
+    "Expenses:Food & Groceries:Take away (Fast Food):",
+    "Expenses:Home & Utilities:Internet:",
+    "Expenses:Home & Utilities:Media Subscriptions:",
+    "Expenses:Home & Utilities:Mobile:",
+    "Expenses:Shopping & Lifestyle:Accessories & Clothing:",
+    "Expenses:Shopping & Lifestyle:Electronics & Gadgets:",
+    "Expenses:Shopping & Lifestyle:Gardening & Tools:",
+    "Expenses:Shopping & Lifestyle:Household Goods:",
+    "Expenses:Shopping & Lifestyle:Miscellaneous:"
+  ],
+  "rule_mining_generic_leaf_names": [
+    "Chinese",
+    "Desserts & Sweets",
+    "Indian",
+    "Japanese",
+    "Mexican",
+    "Thai",
+    "Shoes",
+    "Repairs",
+    "Computer Fair"
+  ]
+}

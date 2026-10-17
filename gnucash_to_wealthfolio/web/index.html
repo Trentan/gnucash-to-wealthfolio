@@ -1,0 +1,3983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wealthfolio Importer & Mapping Editor</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --warning-bg: #451a03;
+      --warning-border: #b45309;
+      --warning-text: #fde68a;
+      --badge-bg: #334155;
+      --row-hover: #26354a;
+      --input-bg: #0f172a;
+      --input-border: #475569;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 90px;
+    }
+
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0.85rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .header-title { display: flex; align-items: center; gap: 0.75rem; font-size: 1.25rem; font-weight: 700; }
+    .header-title span { color: var(--primary); }
+    .header-stats { display: flex; gap: 1.25rem; font-size: 0.875rem; color: var(--text-muted); }
+    .header-stats strong { color: var(--text); }
+
+    .container {
+      max-width: min(1840px, 98vw);
+      width: 98%;
+      margin: 1.25rem auto;
+      padding: 0 0.5rem;
+    }
+
+    /* Warning Banner */
+    .warning-banner {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      color: var(--warning-text);
+      border-radius: 8px;
+      padding: 0.85rem 1.25rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+    .warning-banner svg { flex-shrink: 0; width: 22px; height: 22px; fill: currentColor; }
+    .warning-banner h4 { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.2rem; }
+    .warning-banner p { font-size: 0.85rem; opacity: 0.95; }
+
+    /* Tabs */
+    .tab-bar {
+      display: flex;
+      gap: 0.25rem;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 1.25rem;
+      overflow-x: auto;
+      scrollbar-width: thin;
+      white-space: nowrap;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      padding: 0.65rem 0.95rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+    .tab-badge {
+      background: var(--badge-bg);
+      color: var(--text);
+      padding: 0.15rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }
+    .tab-badge.danger { background: var(--danger); color: white; }
+
+    /* Controls Bar */
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.85rem;
+      flex-wrap: wrap;
+    }
+    .filter-pills { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+    .pill {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 0.3rem 0.65rem;
+      border-radius: 16px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .pill:hover { border-color: var(--text-muted); color: var(--text); }
+    .pill.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .pill.danger-pill.active { background: var(--danger); border-color: var(--danger); }
+
+    .search-input, .select-filter {
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text);
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+    }
+    .search-input { min-width: 280px; }
+    .search-input:focus, .select-filter:focus { outline: none; border-color: var(--primary); }
+
+    /* Tables & Wide Layout */
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+    }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; min-width: 1280px; }
+    th {
+      background: #111827;
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 0.75rem 0.85rem;
+      border-bottom: 1px solid var(--card-border);
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+    th:hover { color: var(--text); }
+    th .sort-icon { font-size: 0.75rem; margin-left: 0.35rem; opacity: 0.6; }
+    th.sorted .sort-icon { opacity: 1; color: var(--primary); }
+
+    td {
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid var(--card-border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--row-hover); }
+
+    .mono-cell {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+    }
+    .amount-outflow {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 700;
+      color: #f87171;
+    }
+    .amount-inflow {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 700;
+      color: #34d399;
+    }
+    .amount-xfer {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 700;
+      color: #93c5fd;
+    }
+
+    /* Budget Group Badges (Correlates with Wealthfolio Spending "Where it went") */
+    .bg-badge {
+      font-size: 0.725rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      display: inline-block;
+      white-space: nowrap;
+    }
+    .bg-badge.needs { background: #1e3a5f; color: #93c5fd; border: 1px solid #3b82f655; }
+    .bg-badge.wants { background: #3b1d54; color: #d8b4fe; border: 1px solid #a855f755; }
+    .bg-badge.investment { background: #064e3b; color: #6ee7b7; border: 1px solid #10b98155; }
+    .bg-badge.savings { background: #144e54; color: #67e8f9; border: 1px solid #06b6d455; }
+    .bg-badge.giving { background: #4c1d24; color: #fda4af; border: 1px solid #f43f5e55; }
+    .bg-badge.personal { background: #4a1d4a; color: #f0abfc; border: 1px solid #d946ef55; }
+    .bg-badge.other { background: #334155; color: #cbd5e1; border: 1px solid #64748b55; }
+    .bg-badge.income { background: #14532d; color: #86efac; border: 1px solid #22c55e55; }
+    .bg-badge.transfer { background: #1e293b; color: #94a3b8; border: 1px dashed #64748b; }
+
+    /* Wealthfolio Activity Type Badges */
+    .act-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.18rem 0.5rem;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: inline-block;
+      white-space: nowrap;
+      font-family: monospace;
+    }
+    .act-badge.withdrawal { background: #450a0a; color: #fca5a5; border: 1px solid #ef444455; }
+    .act-badge.deposit { background: #052e16; color: #86efac; border: 1px solid #22c55e55; }
+    .act-badge.transfer_out { background: #1e1b4b; color: #a5b4fc; border: 1px solid #6366f155; }
+    .act-badge.transfer_in { background: #0c4a6e; color: #7dd3fc; border: 1px solid #0284c755; }
+    .act-badge.fee { background: #451a03; color: #fdba74; border: 1px solid #f9731655; }
+    .act-badge.credit { background: #134e4a; color: #5eead4; border: 1px solid #14b8a655; }
+    .act-badge.interest { background: #14532d; color: #bbf7d0; border: 1px solid #4ade8055; }
+    .act-badge.other { background: #1e293b; color: #94a3b8; border: 1px solid #47556955; }
+
+    .select-parent, .subcat-input {
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text);
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      width: 100%;
+    }
+    .subcat-input:focus, .select-parent:focus { outline: none; border-color: var(--primary); }
+
+    .status-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+    .status-badge.custom { background: #064e3b; color: #6ee7b7; }
+    .status-badge.warning { background: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+    .status-badge.auto { background: #334155; color: #cbd5e1; }
+    .status-badge.active { background: #064e3b; color: #6ee7b7; border: 1px solid #10b98155; }
+    .status-badge.archived { background: #3b2d1d; color: #fcd34d; border: 1px solid #d9770655; }
+    .status-badge.not-imported { background: #1e293b; color: #94a3b8; border: 1px dashed #64748b55; }
+
+    .btn-import-toggle {
+      border: 1px solid;
+      padding: 0.3rem 0.65rem;
+      border-radius: 16px;
+      font-size: 0.775rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.15s;
+    }
+    .btn-import-toggle.imported {
+      background: #064e3b;
+      color: #6ee7b7;
+      border-color: #10b981;
+    }
+    .btn-import-toggle.imported:hover {
+      background: #04382a;
+      border-color: #34d399;
+    }
+    .btn-import-toggle.excluded {
+      background: #1e293b;
+      color: #94a3b8;
+      border-color: #475569;
+    }
+    .btn-import-toggle.excluded:hover {
+      background: #334155;
+      color: #cbd5e1;
+      border-color: #64748b;
+    }
+
+    .mortgage-badge {
+      background: #14532d;
+      color: #86efac;
+      border: 1px solid #22c55e44;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      display: inline-block;
+      white-space: nowrap;
+    }
+
+    .acct-type-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      margin-right: 0.45rem;
+      letter-spacing: 0.03em;
+      display: inline-block;
+    }
+    .acct-type-badge.bank { background: #0c4a6e; color: #7dd3fc; border: 1px solid #0284c755; }
+    .acct-type-badge.credit { background: #4c1d24; color: #fda4af; border: 1px solid #f43f5e55; }
+    .acct-type-badge.asset { background: #144e54; color: #67e8f9; border: 1px solid #06b6d455; }
+    .acct-type-badge.liability { background: #431407; color: #fdba74; border: 1px solid #ea580c55; }
+    .acct-type-badge.equity { background: #3b1d54; color: #d8b4fe; border: 1px solid #a855f755; }
+    .acct-type-badge.other { background: #1e293b; color: #94a3b8; border: 1px solid #47556955; }
+
+    /* Buttons */
+    .btn-primary, .btn-secondary, .btn-accent, .btn-danger {
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: white; padding: 0.4rem 0.75rem; font-size: 0.825rem; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text); padding: 0.4rem 0.75rem; font-size: 0.825rem; }
+    .btn-secondary:hover { border-color: var(--text-muted); }
+    .btn-accent { background: var(--accent); color: white; padding: 0.5rem 1.25rem; font-size: 0.9rem; }
+    .btn-accent:hover { background: var(--accent-hover); }
+    .btn-danger { background: var(--danger); color: white; padding: 0.35rem 0.65rem; font-size: 0.8rem; }
+    .btn-danger:hover { background: var(--danger-hover); }
+
+    /* Pagination controls */
+    .pagination-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      background: #111827;
+      border-top: 1px solid var(--card-border);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .pagination-nav { display: flex; align-items: center; gap: 0.35rem; }
+    .pg-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .pg-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+    .pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Sticky Bottom Action Bar */
+    .action-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #0f172aee;
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--card-border);
+      padding: 0.85rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 40;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .action-bar.has-staged {
+      border-top: 2px solid #f59e0b;
+      box-shadow: 0 -4px 20px rgba(245, 158, 11, 0.2);
+    }
+    @keyframes pulseSave {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+      50% { transform: scale(1.02); box-shadow: 0 0 10px 2px rgba(245, 158, 11, 0.6); }
+    }
+    .btn-save-pulsing {
+      background: #f59e0b !important;
+      color: #0f172a !important;
+      border-color: #d97706 !important;
+      font-weight: 700 !important;
+      animation: pulseSave 2s infinite ease-in-out;
+    }
+    .action-status { font-size: 0.9rem; color: var(--text-muted); }
+    .btn-group { display: flex; gap: 0.75rem; }
+
+    /* Modal Backdrop */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      width: 92%;
+      max-width: 640px;
+      padding: 1.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .modal h3 { font-size: 1.15rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+    .modal p { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.25rem; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.825rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.35rem; }
+    .form-group input, .form-group select {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+    }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary); }
+    .radio-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      margin-bottom: 0.6rem;
+      padding: 0.6rem;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      background: #0f172a66;
+      cursor: pointer;
+    }
+    .radio-option:hover { border-color: var(--primary); }
+    .radio-option input { margin-top: 0.2rem; cursor: pointer; }
+    .radio-title { font-size: 0.85rem; font-weight: 600; color: var(--text); }
+    .radio-desc { font-size: 0.75rem; color: var(--text-muted); }
+
+    .tx-info-card {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.25rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.6rem;
+      font-size: 0.8rem;
+    }
+    .tx-info-card div span { display: block; color: var(--text-muted); font-size: 0.725rem; text-transform: uppercase; }
+    .tx-info-card div strong { color: var(--text); }
+
+    .log-box {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 0.85rem;
+      font-family: monospace;
+      font-size: 0.825rem;
+      color: #cbd5e1;
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      margin-top: 1rem;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 80px;
+      right: 2rem;
+      background: #064e3b;
+      color: #6ee7b7;
+      border: 1px solid #10b981;
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      z-index: 999;
+      display: none;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Header -->
+  <header>
+    <div class="header-title">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <div>GnuCash to <span>Wealthfolio</span> Migration Manager</div>
+    </div>
+    <div class="header-stats">
+      <div>Accounts: <strong id="stat-accounts">0</strong></div>
+      <div>Transactions: <strong id="stat-txs">0</strong></div>
+      <div>Backups: <strong id="stat-backups">0</strong></div>
+      <button class="btn-primary" onclick="openWealthfolioPreviewModal()" title="Preview exactly what will occur in Wealthfolio before running migration" style="padding: 0.35rem 0.85rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; border-radius: 6px; margin-left: 0.5rem; background: #4f46e5; border: 1px solid #6366f1;">
+        🔍 Preview Wealthfolio Impact
+      </button>
+      <button class="btn-secondary" onclick="refreshAllData()" title="Reload cache and re-evaluate rules" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; border-radius: 6px; margin-left: 0.5rem;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Refresh Data
+      </button>
+    </div>
+  </header>
+
+  <!-- Active Target Files & Environment Status Banner -->
+  <div style="background: #0f172a; border-bottom: 1px solid var(--card-border); padding: 0.45rem 2rem; font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+    <div style="display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Active GnuCash File">
+        <span>📘 GnuCash:</span>
+        <code id="path-gnucash" style="color: #93c5fd; font-family: monospace; font-size: 0.75rem; word-break: break-all;">(Loading...)</code>
+        <button class="btn-secondary" onclick="openFileLocation('gnucash')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Reveal this file's folder location in Windows Explorer">📂</button>
+        <button class="btn-secondary" onclick="browseFile('gnucash')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Select a different GnuCash file">Change...</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Target Wealthfolio SQLite Database">
+        <span>💼 Wealthfolio DB:</span>
+        <code id="path-wealthfolio-db" style="color: #6ee7b7; font-family: monospace; font-size: 0.75rem; word-break: break-all;">(Loading...)</code>
+        <button class="btn-secondary" onclick="openFileLocation('wealthfolio_db')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Reveal Wealthfolio DB folder location in Windows Explorer">📂</button>
+        <button class="btn-secondary" onclick="browseFile('wealthfolio_db')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Select a different Wealthfolio database">Change...</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Active Category & Account Mapping Configuration File">
+        <span>⚙️ Active Mapping:</span>
+        <code id="path-mapping" style="color: #fde68a; font-family: monospace; font-size: 0.75rem; word-break: break-all;">(Loading...)</code>
+        <button class="btn-secondary" onclick="openFileLocation('mapping')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Reveal mapping.json folder location in Windows Explorer">📂</button>
+        <button class="btn-secondary" onclick="browseFile('mapping')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Select a different mapping JSON">Change...</button>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <span style="color: #94a3b8; font-size: 0.75rem;">Snapshots:</span>
+      <select id="quick-mapping-snapshot-select" class="select-filter" style="padding: 0.2rem 0.5rem; font-size: 0.75rem; max-width: 220px;" title="Select a mapping snapshot">
+        <option value="">No snapshots found</option>
+      </select>
+      <button class="btn-secondary" onclick="restoreSelectedSnapshot('quick-mapping-snapshot-select')" style="padding: 0.2rem 0.55rem; font-size: 0.75rem;" title="Restore this snapshot into active mapping.json">
+        ↺ Restore
+      </button>
+      <button class="btn-secondary" onclick="promptCreateSnapshot()" style="padding: 0.2rem 0.55rem; font-size: 0.75rem;" title="Create an instant snapshot checkpoint of active mapping.json">
+        📸 Save Snapshot
+      </button>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Destructive Sync Warning Banner -->
+    <div class="warning-banner">
+      <svg viewBox="0 0 24 24"><path d="M12 2L1 21h22L12 2zm0 3.5L20.5 19h-17L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>
+      <div>
+        <h4>Destructive Sync Notice & Granular Mismatch Resolver</h4>
+        <p>
+          Every sync completely replaces all GnuCash-sourced records in Wealthfolio to preserve exact balance reconciliation ($0.00 difference).
+          Your configurations in <code>config/mapping.json</code> persist across runs. Use this editor to assign categories and spending budget groups before running migration.
+        </p>
+      </div>
+    </div>
+
+    <!-- Main Navigation Tabs -->
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-accounts-btn" onclick="switchTab('accounts')">
+        1. 🏦 Accounts
+        <span class="tab-badge" id="badge-accounts-count">0</span>
+      </button>
+      <button class="tab-btn" id="tab-mappings-btn" onclick="switchTab('mappings')">
+        2. 📁 Category Mappings
+        <span class="tab-badge" id="badge-all-count">0</span>
+        <span class="tab-badge danger" id="badge-review-count" style="display:none;" title="Accounts needing review">0</span>
+      </button>
+      <button class="tab-btn" id="tab-transactions-btn" onclick="switchTab('transactions')">
+        3. 💳 All Transactions
+        <span class="tab-badge" id="badge-all-txs-count">0</span>
+        <span class="tab-badge danger" id="badge-other-txs-count" style="display:none;" title="Transactions needing review">0</span>
+      </button>
+      <button class="tab-btn" id="tab-categories-btn" onclick="switchTab('categories')">
+        4. ⚙️ Categories &amp; Spending
+        <span class="tab-badge" id="badge-parents-count">0</span>
+      </button>
+      <button class="tab-btn" id="tab-backups-btn" onclick="switchTab('backups')">
+        5. 💾 Backups
+        <span class="tab-badge" id="badge-backups-count">0</span>
+      </button>
+    </div>
+
+    <!-- VIEW 1: ALL TRANSACTIONS (Comprehensive Granular Inspector) -->
+    <div id="view-transactions" style="display: none;">
+      <div class="controls-bar">
+        <div class="filter-pills">
+          <button class="pill active" id="tpill-all" onclick="setTxFilter('ALL')">All (<span id="tpill-all-cnt">0</span>)</button>
+          <button class="pill danger-pill" id="tpill-uncat" onclick="setTxFilter('UNCAT')">⚠️ Uncategorized Outflows (<span id="tpill-uncat-cnt">0</span>)</button>
+          <button class="pill danger-pill" id="tpill-direct" onclick="setTxFilter('DIRECT')">⚠️ Direct / Root (<span id="tpill-direct-cnt">0</span>)</button>
+          <button class="pill danger-pill" id="tpill-review" onclick="setTxFilter('REVIEW')">⚠️ Needs Review (<span id="tpill-review-cnt">0</span>)</button>
+          <button class="pill" id="tpill-transfer-out" onclick="setTxFilter('TRANSFER_OUT')">Transfer Out (<span id="tpill-xfer-out-cnt">0</span>)</button>
+          <button class="pill" id="tpill-transfer-in" onclick="setTxFilter('TRANSFER_IN')">Transfer In (<span id="tpill-xfer-in-cnt">0</span>)</button>
+          <button class="pill" id="tpill-needs" onclick="setTxFilter('NEEDS')">Needs</button>
+          <button class="pill" id="tpill-wants" onclick="setTxFilter('WANTS')">Wants</button>
+          <button class="pill" id="tpill-investment" onclick="setTxFilter('INVESTMENT')">Investment</button>
+          <button class="pill" id="tpill-savings" onclick="setTxFilter('SAVINGS')">Savings</button>
+          <button class="pill" id="tpill-giving" onclick="setTxFilter('GIVING')">Giving</button>
+          <button class="pill" id="tpill-personal" onclick="setTxFilter('PERSONAL')">Personal</button>
+          <button class="pill" id="tpill-other" onclick="setTxFilter('OTHER')">Other</button>
+          <button class="pill" id="tpill-income" onclick="setTxFilter('INCOME')">Income</button>
+          <button class="pill" id="tpill-transfer" onclick="setTxFilter('TRANSFER')">All Transfers</button>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+          <select class="select-filter" id="tx-filter-type" onchange="onTxFilterChange()" style="max-width: 150px;" title="Filter by exact Wealthfolio Activity Type">
+            <option value="">All Activity Types</option>
+            <option value="WITHDRAWAL">WITHDRAWAL (Outflow)</option>
+            <option value="DEPOSIT">DEPOSIT (Income)</option>
+            <option value="TRANSFER_OUT">TRANSFER_OUT (Debit)</option>
+            <option value="TRANSFER_IN">TRANSFER_IN (Credit)</option>
+            <option value="FEE">FEE (Bank Fee)</option>
+            <option value="CREDIT">CREDIT (Refund)</option>
+            <option value="INTEREST">INTEREST (Yield)</option>
+          </select>
+          <select class="select-filter" id="tx-filter-parent" onchange="onTxFilterChange()" style="max-width: 170px;">
+            <option value="">All Categories</option>
+          </select>
+          <select class="select-filter" id="tx-filter-account" onchange="onTxFilterChange()" style="max-width: 170px;">
+            <option value="">All Accounts</option>
+          </select>
+          <input type="text" class="search-input" id="tx-search-input" placeholder="Search payee, memo, counterpart, GUID..." oninput="onTxSearchDebounced()">
+          <button class="btn-secondary" onclick="refreshAllData()" title="Reload cache and re-evaluate rules across all transactions" style="padding: 0.4rem 0.75rem; font-size: 0.825rem; display: flex; align-items: center; gap: 0.35rem; white-space: nowrap;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Bulk Selection Action Bar -->
+      <div id="tx-bulk-bar" style="display: none; background: #1e1b4b; border: 1px solid #4f46e5; border-radius: 8px; padding: 0.6rem 1.1rem; margin-bottom: 0.75rem; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span style="font-weight: 600; color: #a5b4fc;"><span id="bulk-selected-count">0</span> transactions selected</span>
+          <button class="btn-secondary" onclick="clearTxSelection()" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">Clear Selection</button>
+        </div>
+        <button class="btn-accent" onclick="openBulkAssignModal()" style="display: flex; align-items: center; gap: 0.35rem; padding: 0.4rem 0.9rem; font-size: 0.85rem;">
+          ⚡ Mass Assign Category &amp; Spending
+        </button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;"><input type="checkbox" id="th-tx-select-all" onclick="toggleSelectAllTx(this.checked)" title="Select all on this page"></th>
+              <th id="th-tx-date" onclick="sortTxTable('date')" style="width: 105px;">Date <span class="sort-icon">↕</span></th>
+              <th id="th-tx-account" onclick="sortTxTable('account')" style="width: 180px;">GnuCash Source <span class="sort-icon">↕</span></th>
+              <th id="th-tx-counterpart" onclick="sortTxTable('counterpart')" style="min-width: 220px;">GnuCash Counterpart <span class="sort-icon">↕</span></th>
+              <th id="th-tx-payee" onclick="sortTxTable('payee')" style="min-width: 230px;">Payee / Description <span class="sort-icon">↕</span></th>
+              <th id="th-tx-type" onclick="sortTxTable('activity_type')" style="width: 125px; text-align: center;">Wealthfolio Type <span class="sort-icon">↕</span></th>
+              <th id="th-tx-amount" onclick="sortTxTable('amount')" style="width: 110px; text-align: right;">Amount <span class="sort-icon">↕</span></th>
+              <th id="th-tx-bg" onclick="sortTxTable('budget_group')" style="width: 135px; text-align: center;">Wealthfolio Spending <span class="sort-icon">↕</span></th>
+              <th id="th-tx-cat" onclick="sortTxTable('category')" style="min-width: 165px;">Wealthfolio Category <span class="sort-icon">↕</span></th>
+              <th id="th-tx-subcat" onclick="sortTxTable('subcategory')" style="min-width: 180px;">Wealthfolio Subcategory <span class="sort-icon">↕</span></th>
+              <th style="width: 120px; text-align: center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tx-tbody">
+            <tr><td colspan="11" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">Loading transactions...</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Pagination Bar -->
+        <div class="pagination-bar">
+          <div id="tx-pagination-info">Showing 0–0 of 0 transactions</div>
+          <div class="pagination-nav">
+            <button class="pg-btn" id="pg-first" onclick="goToPage(1)">« First</button>
+            <button class="pg-btn" id="pg-prev" onclick="goToPage(txState.page - 1)">‹ Prev</button>
+            <span style="margin: 0 0.35rem;">Page <strong id="pg-current">1</strong> of <strong id="pg-total">1</strong></span>
+            <button class="pg-btn" id="pg-next" onclick="goToPage(txState.page + 1)">Next ›</button>
+            <button class="pg-btn" id="pg-last" onclick="goToPage(txState.totalPages)">Last »</button>
+            <span style="margin-left: 0.75rem;">Per page:</span>
+            <select class="select-filter" id="pg-limit" onchange="onPageSizeChange(this.value)" style="padding: 0.15rem 0.5rem; font-size: 0.8rem;">
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 2: ACCOUNTS (Assets, Liabilities & Equity) -->
+    <div id="view-accounts">
+      <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1.1rem 1.25rem; margin-bottom: 1.1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">GnuCash Balance Sheet Accounts &amp; Wealthfolio Control</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">
+            Manage which Assets and Liabilities are created as active/archived accounts in Wealthfolio vs. ignored or treated as external transfers.
+            All imported accounts generate deterministic UUIDs and track exact balances ($0.00 difference).
+          </p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Imported Accounts:</span>
+          <strong id="accounts-imported-summary" style="font-size: 1rem; color: #10b981;">0 active, 0 archived</strong>
+          <button class="btn-primary" id="btn-save-accounts-top" onclick="saveMappings(false)" style="margin-left: 0.5rem; padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 0.4rem;">
+            💾 Save Account Mappings <span id="top-acc-staged-badge" style="display: none; background: #fbbf24; color: #1e1b4b; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: bold;">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="controls-bar">
+        <div class="filter-pills">
+          <button class="pill active" id="apill-bs" onclick="setAccountFilter('ALL_BS')">Balance Sheet (<span id="acnt-bs">0</span>)</button>
+          <button class="pill" id="apill-imported" onclick="setAccountFilter('IMPORTED')">Imported to Wealthfolio (<span id="acnt-imported">0</span>)</button>
+          <button class="pill" id="apill-mortgages" onclick="setAccountFilter('MORTGAGES')">🏠 Mortgages &amp; Loans (<span id="acnt-mortgages">0</span>)</button>
+          <button class="pill" id="apill-assets" onclick="setAccountFilter('ASSETS')">Assets (<span id="acnt-assets">0</span>)</button>
+          <button class="pill" id="apill-liabilities" onclick="setAccountFilter('LIABILITIES')">Liabilities &amp; Cards (<span id="acnt-liabilities">0</span>)</button>
+          <button class="pill" id="apill-equity" onclick="setAccountFilter('EQUITY')">Equity (<span id="acnt-equity">0</span>)</button>
+          <button class="pill" id="apill-ignored" onclick="setAccountFilter('IGNORED')">Ignored / External (<span id="acnt-ignored">0</span>)</button>
+          <button class="pill" id="apill-all" onclick="setAccountFilter('ALL')">All Accounts (<span id="acnt-all">0</span>)</button>
+          <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.825rem; color: var(--text-muted); cursor: pointer; margin-left: 0.5rem;">
+            <input type="checkbox" id="hide-zero-tx-accounts" checked onchange="renderAccounts()">
+            Hide 0-tx accounts
+          </label>
+        </div>
+        <input type="text" class="search-input" id="account-search-input" placeholder="Search mortgage, loan, property, account path, or Wealthfolio name..." oninput="handleAccountSearch()">
+      </div>
+
+      <!-- Accounts Bulk Selection Action Bar -->
+      <div id="acc-bulk-bar" style="display: none; background: #1e1b4b; border: 1px solid #4f46e5; border-radius: 8px; padding: 0.6rem 1.1rem; margin-bottom: 0.75rem; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span style="font-weight: 600; color: #a5b4fc;"><span id="acc-bulk-selected-count">0</span> accounts selected</span>
+          <button class="btn-secondary" onclick="clearAccSelection()" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">Clear Selection</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+          <button class="btn-primary" onclick="bulkSetAccountsImport(true)" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; background: #059669; border-color: #10b981;">
+            ✓ Mark as Imported
+          </button>
+          <button class="btn-secondary" onclick="bulkSetAccountsArchive(true)" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+            📦 Mark as Archived
+          </button>
+          <button class="btn-secondary" onclick="bulkSetAccountsImport(false)" style="padding: 0.35rem 0.75rem; font-size: 0.8rem; color: #f87171; border-color: #ef444455;">
+            ⊘ Exclude Selected
+          </button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;"><input type="checkbox" id="th-acc-select-all" onclick="toggleSelectAllAccounts(this.checked)" title="Select all accounts"></th>
+              <th id="th-acc-path" onclick="sortAccounts('gnc_path')" style="width: 25%;">GnuCash Account Path &amp; Classification <span class="sort-icon">↕</span></th>
+              <th id="th-acc-tx" onclick="sortAccounts('tx_count')" style="width: 6%; text-align: center;">Transactions <span class="sort-icon">↕</span></th>
+              <th id="th-acc-bal" onclick="sortAccounts('gnc_balance')" style="width: 10%; text-align: right;">Ending Balance <span class="sort-icon">↕</span></th>
+              <th id="th-acc-import" onclick="sortAccounts('is_imported')" style="width: 14%; text-align: center;">Account Scope <span class="sort-icon">↕</span></th>
+              <th id="th-acc-wftype" onclick="sortAccounts('wf_account_type')" style="width: 11%;">Account Type <span class="sort-icon">↕</span></th>
+              <th id="th-acc-status" onclick="sortAccounts('is_archived')" style="width: 9%;">Status <span class="sort-icon">↕</span></th>
+              <th id="th-acc-wfname" onclick="sortAccounts('wf_name')" style="width: 13%;">Wealthfolio Name <span class="sort-icon">↕</span></th>
+              <th id="th-acc-group" onclick="sortAccounts('wf_group')" style="width: 9%;">Group <span class="sort-icon">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="accounts-tbody">
+            <tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading accounts...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <datalist id="wf-group-datalist">
+        <option value="Banking">Banking</option>
+        <option value="Credit Cards">Credit Cards</option>
+        <option value="Archived">Archived</option>
+        <option value="Loans">Loans</option>
+        <option value="Investments">Investments</option>
+      </datalist>
+    </div>
+
+    <!-- VIEW 3: CATEGORY MAPPINGS TREE -->
+    <div id="view-mappings" style="display: none;">
+      <div class="controls-bar">
+        <div class="filter-pills">
+          <button class="pill" id="pill-review" onclick="setFilter('review')">⚠️ Unmapped (<span id="pill-review-count">0</span>)</button>
+          <button class="pill" id="pill-fallback" onclick="setFilter('fallback')">⚠️ Fallback / Other (<span id="pill-fallback-count">0</span>)</button>
+          <button class="pill" id="pill-root" onclick="setFilter('root')">⚠️ Root Only (<span id="pill-root-count">0</span>)</button>
+          <button class="pill active" id="pill-all" onclick="setFilter('all')">All Categories</button>
+          <button class="pill" id="pill-needs" onclick="setFilter('NEEDS')">Needs</button>
+          <button class="pill" id="pill-wants" onclick="setFilter('WANTS')">Wants</button>
+          <button class="pill" id="pill-investment" onclick="setFilter('INVESTMENT')">Investment</button>
+          <button class="pill" id="pill-savings" onclick="setFilter('SAVINGS')">Savings</button>
+          <button class="pill" id="pill-other" onclick="setFilter('OTHER')">Other</button>
+          <button class="pill" id="pill-income" onclick="setFilter('INCOME')">Income</button>
+          <button class="pill" id="pill-custom" onclick="setFilter('custom')">User Custom (<span id="pill-custom-count">0</span>)</button>
+          <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.825rem; color: var(--text-muted); cursor: pointer; margin-left: 0.5rem;">
+            <input type="checkbox" id="hide-zero-tx" onchange="renderMappings()">
+            Hide 0-tx accounts
+          </label>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+          <select class="select-filter" id="mapping-filter-parent" onchange="renderMappings()" style="max-width: 240px;" title="Filter by Wealthfolio Category">
+            <option value="">All Wealthfolio Categories</option>
+          </select>
+          <input type="text" class="search-input" id="search-input" placeholder="Search account path, category, or subcategory..." oninput="handleSearch()">
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin: 0.4rem 0 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          Showing <strong id="mapping-visible-cnt" style="color: var(--text);">0</strong> of <strong id="mapping-total-cnt">512</strong> GnuCash category mappings
+          <span id="mapping-zero-note" style="color: #94a3b8; margin-left: 0.35rem;"></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+          <span style="font-size: 0.8rem; color: #94a3b8;">Mapping Snapshot:</span>
+          <select id="mapping-tab-snapshot-select" class="select-filter" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; max-width: 240px;">
+            <option value="">No snapshots found</option>
+          </select>
+          <button class="btn-secondary" onclick="restoreSelectedSnapshot('mapping-tab-snapshot-select')" style="padding: 0.25rem 0.65rem; font-size: 0.8rem;" title="Restore this mapping snapshot">
+            ↺ Restore Snapshot
+          </button>
+          <button class="btn-secondary" onclick="promptCreateSnapshot()" style="padding: 0.25rem 0.65rem; font-size: 0.8rem;" title="Create snapshot of current mapping">
+            📸 Save Snapshot
+          </button>
+          <button class="btn-primary" id="btn-save-categories-top" onclick="saveMappings(false)" style="margin-left: 0.5rem; padding: 0.35rem 0.85rem; font-size: 0.825rem; font-weight: 600; display: flex; align-items: center; gap: 0.4rem;">
+            💾 Save Category Mappings <span id="top-cat-staged-badge" style="display: none; background: #fbbf24; color: #1e1b4b; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: bold;">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th id="th-m-path" onclick="sortMappings('gnc_path')" style="width: 27%;">GnuCash Account Path <span class="sort-icon">↕</span></th>
+              <th id="th-m-tx" onclick="sortMappings('tx_count')" style="width: 7%; text-align: center;">Txs <span class="sort-icon">↕</span></th>
+              <th id="th-m-vol" onclick="sortMappings('total_amount')" style="width: 9%; text-align: right;">Total Vol <span class="sort-icon">↕</span></th>
+              <th id="th-m-type" onclick="sortMappings('activity_type')" style="width: 11%; text-align: center;">Type <span class="sort-icon">↕</span></th>
+              <th id="th-m-bg" onclick="sortMappings('budget_group')" style="width: 12%; text-align: center;">Spending <span class="sort-icon">↕</span></th>
+              <th id="th-m-parent" onclick="sortMappings('parent_id')" style="width: 16%;">Wealthfolio Category <span class="sort-icon">↕</span></th>
+              <th id="th-m-name" onclick="sortMappings('category_name')" style="width: 12%;">Subcategory Name <span class="sort-icon">↕</span></th>
+              <th id="th-m-status" onclick="sortMappings('status')" style="width: 6%; text-align: center;">Status <span class="sort-icon">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="mappings-tbody">
+            <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading mapping state...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- VIEW 3: MANAGE CATEGORIES & SPENDING ASSESSMENT -->
+    <div id="view-categories" style="display: none;">
+      <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Wealthfolio Parent Categories & Spending Assessment</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Manage which Spending Budget Group (<code>NEEDS</code>, <code>WANTS</code>, <code>INVESTMENT</code>, <code>SAVINGS</code>, <code>GIVING</code>, <code>PERSONAL</code>, <code>OTHER</code>, <code>INCOME</code>) each Parent Category rolls up to in Wealthfolio.
+          </p>
+        </div>
+        <button class="btn-primary" onclick="openAddParentModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Custom Parent Category
+        </button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25%;">Parent Category Name</th>
+              <th style="width: 18%;">Taxonomy</th>
+              <th style="width: 25%;">Spending Budget Group</th>
+              <th style="width: 15%;">Color Preview</th>
+              <th style="width: 17%; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="categories-tbody">
+            <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading parent categories...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Payee & Auto-Categorization Rules Manager -->
+      <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1.25rem; margin-top: 2rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Payee &amp; Transaction Auto-Categorization Rules</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Rules are evaluated in priority order to categorize transactions matching specific payee descriptions or keywords.
+          </p>
+        </div>
+        <button class="btn-primary" onclick="openAddRuleModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Payee Rule
+        </button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 8%; text-align: center;">Priority</th>
+              <th style="width: 22%;">Rule Name</th>
+              <th style="width: 28%;">Match Pattern</th>
+              <th style="width: 12%; text-align: center;">Match Type</th>
+              <th style="width: 20%;">Target Category</th>
+              <th style="width: 10%; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="rules-tbody">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading categorization rules...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- VIEW 4: DATABASE & MAPPING BACKUPS -->
+    <div id="view-backups" style="display: none;">
+      <!-- Mapping Backup & Portability Box -->
+      <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Configuration &amp; Mapping Portability</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            Export or import your complete account and category mapping (<code>config/mapping.json</code>). Automatic backups are created before every modification.
+          </p>
+        </div>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <button class="btn-secondary" onclick="exportMappingFile()" style="display: flex; align-items: center; gap: 0.35rem;">
+            📥 Export mapping.json
+          </button>
+          <button class="btn-secondary" onclick="triggerImportMapping()" style="display: flex; align-items: center; gap: 0.35rem;">
+            📤 Import mapping.json
+          </button>
+          <input type="file" id="mapping-import-input" accept=".json" style="display: none;" onchange="handleMappingFileChosen(this.files[0])">
+          <button class="btn-secondary" onclick="pruneMappingBackups()">
+            Prune Mapping Backups (Keep 20)
+          </button>
+        </div>
+      </div>
+
+      <!-- Mapping Backups Table -->
+      <div style="margin-bottom: 2rem;">
+        <h4 style="font-size: 0.95rem; margin-bottom: 0.5rem; color: #cbd5e1;">Saved Mapping Snapshots (<code>backups/mappings/</code>)</h4>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 45%;">Snapshot File</th>
+                <th style="width: 30%;">Created Timestamp</th>
+                <th style="width: 15%;">Size</th>
+                <th style="width: 10%; text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="mapping-backups-tbody">
+              <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">Loading mapping backups...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- SQLite Database Backups Box -->
+      <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+          <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Wealthfolio Database Backups Storage</h3>
+          <p id="backups-desc" style="font-size: 0.85rem; color: var(--text-muted);">Loading database backups information...</p>
+        </div>
+        <button class="btn-secondary" onclick="pruneBackups()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          Prune Database Backups (Keep Latest 3)
+        </button>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 45%;">Database Backup File</th>
+              <th style="width: 30%;">Created Timestamp</th>
+              <th style="width: 15%;">Size</th>
+              <th style="width: 10%; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody id="backups-tbody">
+            <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading backups...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Sticky Bottom Action Bar -->
+  <div class="action-bar">
+    <div class="action-status" id="action-status">
+      Ready &middot; <span id="staged-count-text">0 changes staged</span>
+    </div>
+    <div class="btn-group">
+      <button class="btn-secondary" onclick="openWealthfolioPreviewModal()" style="display: flex; align-items: center; gap: 0.4rem; border-color: #6366f1; color: #a5b4fc;">
+        🔍 Preview Wealthfolio Impact
+      </button>
+      <button class="btn-secondary" id="btn-save-bottom" onclick="saveMappings(false)">Save Mappings</button>
+      <button class="btn-accent" onclick="confirmAndMigrate()">Save & Run Migration</button>
+    </div>
+  </div>
+
+  <!-- Interactive Assign Transaction Modal -->
+  <div class="modal-backdrop" id="assign-modal">
+    <div class="modal">
+      <h3>Assign Category & Spending Assessment</h3>
+      <p>Configure how this transaction and counterpart account classify in Wealthfolio.</p>
+
+      <div class="tx-info-card">
+        <div><span>Date</span><strong id="m-tx-date">-</strong></div>
+        <div><span>Amount</span><strong id="m-tx-amount">-</strong></div>
+        <div><span>Source Account</span><strong id="m-tx-account">-</strong></div>
+        <div><span>Payee</span><strong id="m-tx-payee">-</strong></div>
+        <div><span>Wealthfolio Type</span><strong id="m-tx-type">-</strong></div>
+        <div style="grid-column: 1 / -1;"><span>GnuCash Counterpart</span><strong id="m-tx-counterpart" class="mono-cell">-</strong></div>
+      </div>
+
+      <div class="form-group">
+        <label>Wealthfolio Category (Parent)</label>
+        <select id="m-tx-parent" onchange="onModalParentChange(this.value)"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Wealthfolio Subcategory Name</label>
+        <input type="text" id="m-tx-subcat" list="subcat-datalist" placeholder="e.g. Restaurants, Groceries, Rent...">
+        <datalist id="subcat-datalist"></datalist>
+      </div>
+
+      <div class="form-group">
+        <label>Wealthfolio Spending (Budget Group)</label>
+        <select id="m-tx-bg"></select>
+      </div>
+
+      <div class="form-group" style="margin-top: 1.25rem;">
+        <label>Assignment Scope</label>
+        <label class="radio-option">
+          <input type="radio" name="assign-scope" id="scope-account" value="account" checked>
+          <div>
+            <div class="radio-title">📁 Group Mass Replace: Map Counterpart Account (Recommended)</div>
+            <div class="radio-desc">Updates category mapping for GnuCash account: <code id="m-account-preview"></code>. Mass-replaces mapping across <strong>all transactions</strong> linked to this account.</div>
+          </div>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="assign-scope" id="scope-rule" value="rule">
+          <div style="flex: 1;">
+            <div class="radio-title">⚡ Group Mass Replace: Payee Auto-Categorization Rule</div>
+            <div class="radio-desc">Automatically categorizes all past and future transactions containing this payee text:</div>
+            <div style="margin-top: 0.35rem;">
+              <input type="text" id="m-rule-pattern" style="width: 100%; font-family: monospace; font-size: 0.85rem; padding: 0.35rem 0.6rem; border-radius: 4px; border: 1px solid var(--card-border); background: var(--bg); color: var(--text-color);" placeholder="Pattern to match, e.g. EZIDEBIT CHILDCARE">
+            </div>
+          </div>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="assign-scope" id="scope-transaction" value="transaction">
+          <div>
+            <div class="radio-title">⚠️ Single Transaction Exception (Override only this 1 transaction)</div>
+            <div class="radio-desc">Applies an explicit override only to this specific transaction GUID. (Use only as a one-off exception).</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeAssignModal()">Cancel</button>
+        <button class="btn-primary" onclick="submitAssignModal()">Save & Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bulk Assign Transactions Modal -->
+  <div class="modal-backdrop" id="bulk-assign-modal">
+    <div class="modal" style="max-width: 580px;">
+      <h3>⚡ Group Mass Assign Category &amp; Spending</h3>
+      <p>Configure category and spending assessment across <strong id="m-bulk-count" style="color: #60a5fa;">0</strong> selected transactions.</p>
+
+      <div class="form-group">
+        <label>Wealthfolio Category (Parent)</label>
+        <select id="m-bulk-parent" onchange="onBulkModalParentChange(this.value)"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Wealthfolio Subcategory Name</label>
+        <input type="text" id="m-bulk-subcat" placeholder="e.g. Restaurants, Groceries, Childcare, Rent...">
+      </div>
+
+      <div class="form-group">
+        <label>Wealthfolio Spending (Budget Group)</label>
+        <select id="m-bulk-bg"></select>
+      </div>
+
+      <div class="form-group" style="margin-top: 1.25rem;">
+        <label>Mass Assignment Strategy</label>
+        <label class="radio-option">
+          <input type="radio" name="bulk-scope" value="account" checked>
+          <div>
+            <div class="radio-title">📁 Group Mass Replace: Map Counterpart Accounts (Recommended)</div>
+            <div class="radio-desc">Maps each distinct GnuCash counterpart account in the selection. Replaces mapping across all past and future transactions linked to these accounts.</div>
+          </div>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="bulk-scope" value="rule">
+          <div>
+            <div class="radio-title">⚡ Group Mass Replace: Create Payee Rules</div>
+            <div class="radio-desc">Creates auto-categorization rules for each distinct payee name in the selection.</div>
+          </div>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="bulk-scope" value="transaction">
+          <div>
+            <div class="radio-title">⚠️ Single Overrides: Apply to selected transactions only</div>
+            <div class="radio-desc">Sets explicit transaction overrides only on the selected transactions.</div>
+          </div>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeBulkAssignModal()">Cancel</button>
+        <button class="btn-accent" onclick="submitBulkAssignModal()">⚡ Apply Mass Replace</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Custom Parent Category Modal -->
+  <div class="modal-backdrop" id="add-parent-modal">
+    <div class="modal" style="max-width: 480px;">
+      <h3>Add Custom Parent Category</h3>
+      <p>Create a new top-level category in Wealthfolio.</p>
+
+      <div class="form-group">
+        <label>Category Name</label>
+        <input type="text" id="new-cat-name" placeholder="e.g. Side Hustle, Crypto Staking, Hobbies">
+      </div>
+
+      <div class="form-group">
+        <label>Spending Budget Group</label>
+        <select id="new-cat-bg">
+          <option value="NEEDS">Needs</option>
+          <option value="WANTS" selected>Wants</option>
+          <option value="INVESTMENT">Investment</option>
+          <option value="SAVINGS">Savings</option>
+          <option value="GIVING">Giving</option>
+          <option value="PERSONAL">Personal Care</option>
+          <option value="OTHER">Other Expenses</option>
+          <option value="INCOME">Income Sources</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Color</label>
+        <input type="color" id="new-cat-color" value="#3B82F6" style="height: 40px; padding: 2px;">
+      </div>
+
+      <div class="form-group">
+        <label>Taxonomy</label>
+        <select id="new-cat-tax">
+          <option value="spending_categories">Spending Categories</option>
+          <option value="income_sources">Income Sources</option>
+        </select>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeAddParentModal()">Cancel</button>
+        <button class="btn-primary" onclick="submitAddParent()">Create Category</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Payee Rule Modal -->
+  <div class="modal-backdrop" id="add-rule-modal">
+    <div class="modal" style="max-width: 520px;">
+      <h3>⚡ Add Payee Auto-Categorization Rule</h3>
+      <p>Automatically assign matching transactions to a specific Wealthfolio category.</p>
+
+      <div class="form-group">
+        <label>Rule Name / Description</label>
+        <input type="text" id="new-rule-name" placeholder="e.g. Woolworths Supermarket, Netflix, Gym">
+      </div>
+
+      <div class="form-group">
+        <label>Match Pattern (Substrings, case-insensitive)</label>
+        <input type="text" id="new-rule-pattern" placeholder="e.g. WOOLWORTHS, NETFLIX, ANYTIME FITNESS">
+      </div>
+
+      <div class="form-group">
+        <label>Match Type</label>
+        <select id="new-rule-type">
+          <option value="CONTAINS" selected>Contains (Default)</option>
+          <option value="EXACT">Exact Match</option>
+          <option value="REGEX">Regular Expression</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Target Wealthfolio Category (Parent)</label>
+        <select id="new-rule-parent"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Subcategory Name (Optional)</label>
+        <input type="text" id="new-rule-subcat" placeholder="Leave blank to use Parent default">
+      </div>
+
+      <div class="form-group">
+        <label>Priority (Higher runs first)</label>
+        <input type="number" id="new-rule-priority" value="50" min="1" max="1000">
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeAddRuleModal()">Cancel</button>
+        <button class="btn-primary" onclick="submitAddRule()">Create Rule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Apply Category to Branch Subtree Modal -->
+  <div class="modal-backdrop" id="subtree-modal">
+    <div class="modal" style="max-width: 520px;">
+      <h3>📁 Apply Category to Branch</h3>
+      <p>Assign all GnuCash accounts under prefix <code id="m-subtree-branch" style="color: #60a5fa; font-weight: bold; word-break: break-all;"></code> to a single Wealthfolio Category &amp; Spending Group.</p>
+
+      <div class="form-group">
+        <label>Wealthfolio Category (Parent)</label>
+        <select id="m-subtree-parent" onchange="onSubtreeModalParentChange(this.value)"></select>
+      </div>
+
+      <div class="form-group">
+        <label>Wealthfolio Spending (Budget Group)</label>
+        <select id="m-subtree-bg"></select>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="closeSubtreeModal()">Cancel</button>
+        <button class="btn-accent" onclick="submitSubtreeModal()">⚡ Apply to All Accounts in Branch</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Migration Execution Modal -->
+  <div class="modal-backdrop" id="migrate-modal">
+    <div class="modal">
+      <h3 id="modal-title">Confirm Migration</h3>
+      <p id="modal-desc">
+        Are you sure you want to run the migration now? All prior GnuCash records in Wealthfolio will be replaced with your currently mapped data.
+      </p>
+      <div class="log-box" id="migrate-log-box" style="display: none;"></div>
+      <div class="modal-actions" id="modal-actions">
+        <button class="btn-secondary" onclick="closeMigrateModal()">Cancel</button>
+        <button class="btn-accent" onclick="runMigrationNow()">Execute Migration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- First Launch Onboarding Wizard Modal -->
+  <div class="modal-backdrop" id="onboarding-modal" style="display: none;">
+    <div class="modal" style="max-width: 620px; width: 95vw; padding: 1.75rem;">
+      <h3 style="font-size: 1.35rem; margin-bottom: 0.5rem; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem;">
+        🚀 Welcome to Wealthfolio Importer
+      </h3>
+      <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+        No active mapping configuration was detected. We can automatically scan your GnuCash file and initialize a 3-tier mapping based on standard chart-of-accounts templates.
+      </p>
+
+      <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem; font-size: 0.85rem;">
+        <div style="font-weight: 600; color: #38bdf8; margin-bottom: 0.35rem;">What happens next:</div>
+        <ul style="padding-left: 1.25rem; color: #94a3b8; line-height: 1.6;">
+          <li>Bank and card accounts are classified into active or archived.</li>
+          <li>Expenses and income are auto-matched against standard spending categories.</li>
+          <li>All rules and mappings will be safely saved in <code>config/mapping.json</code> with automatic backups.</li>
+        </ul>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.25rem;">
+        <label style="display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem; color: #cbd5e1;">Base Currency</label>
+        <select id="onboarding-currency" class="select-filter" style="width: 100%;">
+          <option value="AUD" selected>AUD - Australian Dollar</option>
+          <option value="USD">USD - US Dollar</option>
+          <option value="EUR">EUR - Euro</option>
+          <option value="GBP">GBP - British Pound</option>
+          <option value="CAD">CAD - Canadian Dollar</option>
+          <option value="NZD">NZD - New Zealand Dollar</option>
+        </select>
+      </div>
+
+      <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button class="btn-secondary" onclick="closeOnboardingModal()">Skip / Start Blank</button>
+        <button class="btn-accent" onclick="submitOnboardingInitialize()" style="display: flex; align-items: center; gap: 0.4rem;">
+          ✨ Auto-Configure My File
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wealthfolio Migration Preview & Simulation Modal -->
+  <div class="modal-backdrop" id="wealthfolio-preview-modal" style="display: none;">
+    <div class="modal" style="max-width: 1050px; width: 95vw; max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; padding: 1.5rem 1.75rem;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.85rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.85rem;">
+        <div>
+          <h3 style="font-size: 1.25rem; margin: 0 0 0.25rem; color: #f8fafc; display: flex; align-items: center; gap: 0.5rem;">
+            🔍 What Will Occur in Wealthfolio
+          </h3>
+          <p style="font-size: 0.825rem; color: var(--text-muted); margin: 0;">
+            Live simulation of your accounts, category rollups, and spending assessment before database sync.
+          </p>
+        </div>
+        <button class="btn-secondary" onclick="closeWealthfolioPreviewModal()" style="padding: 0.35rem 0.65rem; font-size: 0.8rem;">✕ Close</button>
+      </div>
+
+      <div id="preview-content-box" style="flex: 1; overflow-y: auto; padding-right: 0.5rem;">
+        <div style="text-align: center; padding: 3rem; color: var(--text-muted);">Loading simulation...</div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 1rem; border-top: 1px solid var(--card-border); padding-top: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn-secondary" onclick="closeWealthfolioPreviewModal()">Close Preview</button>
+        <button class="btn-accent" onclick="closeWealthfolioPreviewModal(); confirmAndMigrate();" style="display: flex; align-items: center; gap: 0.4rem;">
+          ⚡ Looks Good &ndash; Run Migration Now
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Global Application State
+    const state = {
+      activeTab: 'accounts',
+      parents: [],
+      budget_groups: [],
+      budget_group_overrides: {},
+      accounts: [],
+      gnc_accounts: [],
+      backups: [],
+      total_backup_size_mb: 0,
+      stagedChanges: new Map(), // guid -> { parent_id, subcat_name }
+      stagedAccountChanges: new Map(), // guid -> { gnc_guid, role, wf_name, wf_account_type, wf_group, is_active, is_archived }
+      currentFilter: 'all',
+      searchQuery: '',
+      mappingSort: { col: 'tx_count', asc: false },
+      accountFilter: 'ALL_BS',
+      accountSearchQuery: '',
+      accountSort: { col: 'gnc_path', asc: true },
+      selectedTxGuids: new Set(),
+      selectedAccountGuids: new Set(),
+      rules: []
+    };
+
+    // Transactions Table Query State
+    const txState = {
+      page: 1,
+      limit: 100,
+      totalPages: 1,
+      totalCount: 0,
+      filteredCount: 0,
+      q: '',
+      budgetGroup: 'ALL',
+      activityType: '',
+      categoryId: '',
+      account: '',
+      counterpart: '',
+      needsReview: false,
+      sort: 'date',
+      order: 'desc',
+      items: [],
+      searchTimeout: null,
+      activeTx: null
+    };
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 3500);
+    }
+
+    async function loadState() {
+      try {
+        const res = await fetch('/api/state');
+        const data = await res.json();
+        const rawParents = data.parents || [];
+        const seenParentIds = new Set();
+        const seenParentNames = new Set();
+        state.parents = [];
+        for (const p of rawParents) {
+          const normName = (p.name || '').trim().toLowerCase();
+          if (!seenParentIds.has(p.id) && !seenParentNames.has(normName)) {
+            seenParentIds.add(p.id);
+            seenParentNames.add(normName);
+            state.parents.push(p);
+          }
+        }
+        state.parents.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+        state.budget_groups = data.budget_groups || [];
+        state.budget_group_overrides = data.budget_group_overrides || {};
+        state.accounts = data.accounts || [];
+        state.gnc_accounts = data.gnc_accounts || [];
+        state.backups = data.backups || [];
+        state.total_backup_size_mb = data.total_backup_size_mb || 0;
+        state.direct_tx_count = data.direct_tx_count || 0;
+        state.root_categories_count = data.root_categories_count || 0;
+        state.paths = data.paths || {};
+
+        // Update active file paths display in header banner
+        const pGnc = document.getElementById('path-gnucash');
+        if (pGnc) {
+          const gncStr = state.paths.gnucash || 'Not connected';
+          pGnc.textContent = gncStr;
+          pGnc.title = gncStr;
+        }
+        const pWf = document.getElementById('path-wealthfolio-db');
+        if (pWf) {
+          const wfStr = state.paths.wealthfolio_db || state.paths.target_db || 'Not connected';
+          pWf.textContent = wfStr;
+          pWf.title = wfStr;
+        }
+        const pMap = document.getElementById('path-mapping');
+        if (pMap) {
+          const mapStr = state.paths.mapping || 'config/mapping.json';
+          pMap.textContent = mapStr;
+          pMap.title = mapStr;
+        }
+
+        document.getElementById('stat-accounts').textContent = data.book?.accounts_count || 0;
+        document.getElementById('stat-txs').textContent = (data.book?.transactions_count || 0).toLocaleString();
+        document.getElementById('stat-backups').textContent = state.backups.length;
+
+        updateCounters();
+        renderAccounts();
+        renderMappings();
+        renderCategoriesManager();
+        renderBackups();
+        populateFilterDropdowns();
+
+        // Load transactions
+        await fetchTransactions();
+      } catch (err) {
+        console.error('Failed to load state:', err);
+      }
+    }
+
+    function updateCounters() {
+      const unmappedAccounts = state.accounts.filter(a => (!a.category_id || a.is_needs_review) && a.tx_count > 0);
+      const fallbackAccounts = state.accounts.filter(a => a.is_fallback && a.tx_count > 0);
+      const customCount = state.accounts.filter(a => a.is_custom).length;
+      const rootCount = state.accounts.filter(a => a.is_root && a.tx_count > 0).length;
+      const directCount = state.direct_tx_count || 0;
+
+      document.getElementById('badge-all-count').textContent = state.accounts.length;
+      document.getElementById('badge-parents-count').textContent = state.parents.length;
+      document.getElementById('pill-review-count').textContent = unmappedAccounts.length;
+      const pillFallbackEl = document.getElementById('pill-fallback-count');
+      if (pillFallbackEl) pillFallbackEl.textContent = fallbackAccounts.length;
+      const pillRootEl = document.getElementById('pill-root-count');
+      if (pillRootEl) pillRootEl.textContent = rootCount;
+      document.getElementById('pill-custom-count').textContent = customCount;
+
+      const directPillEl = document.getElementById('tpill-direct-cnt');
+      if (directPillEl) directPillEl.textContent = directCount.toLocaleString();
+
+      const reviewBadge = document.getElementById('badge-review-count');
+      const totalAttentionNeeded = unmappedAccounts.length + fallbackAccounts.length;
+      if (totalAttentionNeeded > 0) {
+        if (unmappedAccounts.length > 0) {
+          reviewBadge.textContent = `${unmappedAccounts.length} unmapped`;
+        } else {
+          reviewBadge.textContent = `${fallbackAccounts.length} fallback`;
+        }
+        reviewBadge.style.display = 'inline-block';
+      } else {
+        reviewBadge.style.display = 'none';
+      }
+
+      const badgeOtherTxs = document.getElementById('badge-other-txs-count');
+      if (badgeOtherTxs) {
+        if (directCount > 0) {
+          badgeOtherTxs.textContent = `${directCount} direct`;
+          badgeOtherTxs.style.display = 'inline-block';
+        } else {
+          badgeOtherTxs.style.display = 'none';
+        }
+      }
+
+      // Accounts tab counters
+      const importedAccounts = state.gnc_accounts.filter(a => {
+        const staged = state.stagedAccountChanges.get(a.gnc_guid);
+        return staged ? staged.role.startsWith('MIGRATE_') : a.is_imported;
+      });
+      const activeImported = importedAccounts.filter(a => {
+        const staged = state.stagedAccountChanges.get(a.gnc_guid);
+        return staged ? !staged.is_archived : !a.is_archived;
+      });
+      const archivedImported = importedAccounts.filter(a => {
+        const staged = state.stagedAccountChanges.get(a.gnc_guid);
+        return staged ? Boolean(staged.is_archived) : Boolean(a.is_archived);
+      });
+
+      const bsAccounts = state.gnc_accounts.filter(a => a.is_balance_sheet);
+      const mortgageAccounts = state.gnc_accounts.filter(a => a.is_mortgage_loan);
+      const assetAccounts = state.gnc_accounts.filter(a => a.gnc_path.startsWith('Assets') || ['BANK', 'ASSET', 'CASH', 'STOCK', 'MUTUAL'].includes(a.acct_type));
+      const liabilityAccounts = state.gnc_accounts.filter(a => a.gnc_path.startsWith('Liabilities') || ['CREDIT', 'LIABILITY'].includes(a.acct_type));
+      const equityAccounts = state.gnc_accounts.filter(a => a.gnc_path.startsWith('Equity') || a.acct_type === 'EQUITY');
+      const ignoredAccounts = state.gnc_accounts.filter(a => {
+        const staged = state.stagedAccountChanges.get(a.gnc_guid);
+        return staged ? !staged.role.startsWith('MIGRATE_') : !a.is_imported;
+      });
+
+      const badgeAccountsCount = document.getElementById('badge-accounts-count');
+      if (badgeAccountsCount) badgeAccountsCount.textContent = `${importedAccounts.length} imported`;
+
+      const summaryEl = document.getElementById('accounts-imported-summary');
+      if (summaryEl) summaryEl.textContent = `${activeImported.length} active, ${archivedImported.length} archived`;
+
+      const setBadge = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      setBadge('acnt-bs', bsAccounts.length);
+      setBadge('acnt-imported', importedAccounts.length);
+      setBadge('acnt-mortgages', mortgageAccounts.length);
+      setBadge('acnt-assets', assetAccounts.length);
+      setBadge('acnt-liabilities', liabilityAccounts.length);
+      setBadge('acnt-equity', equityAccounts.length);
+      setBadge('acnt-ignored', ignoredAccounts.length);
+      setBadge('acnt-all', state.gnc_accounts.length);
+
+      document.getElementById('badge-backups-count').textContent = state.backups.length;
+      document.getElementById('backups-desc').textContent = `${state.total_backup_size_mb} MB stored across ${state.backups.length} database backups.`;
+    }
+
+    function switchTab(tab) {
+      state.activeTab = tab;
+      document.getElementById('tab-transactions-btn').classList.toggle('active', tab === 'transactions');
+      const tabAcc = document.getElementById('tab-accounts-btn');
+      if (tabAcc) tabAcc.classList.toggle('active', tab === 'accounts');
+      document.getElementById('tab-mappings-btn').classList.toggle('active', tab === 'mappings');
+      document.getElementById('tab-categories-btn').classList.toggle('active', tab === 'categories');
+      document.getElementById('tab-backups-btn').classList.toggle('active', tab === 'backups');
+
+      document.getElementById('view-transactions').style.display = tab === 'transactions' ? 'block' : 'none';
+      const viewAcc = document.getElementById('view-accounts');
+      if (viewAcc) viewAcc.style.display = tab === 'accounts' ? 'block' : 'none';
+      document.getElementById('view-mappings').style.display = tab === 'mappings' ? 'block' : 'none';
+      document.getElementById('view-categories').style.display = tab === 'categories' ? 'block' : 'none';
+      document.getElementById('view-backups').style.display = tab === 'backups' ? 'block' : 'none';
+      if (tab === 'backups') {
+        loadMappingBackups();
+      }
+    }
+
+    function populateFilterDropdowns() {
+      const catSelect = document.getElementById('tx-filter-parent');
+      catSelect.innerHTML = `<option value="">All Categories</option>` + state.parents.map(p =>
+        `<option value="${p.id}">${escapeHtml(p.name)} (${p.budget_group})</option>`
+      ).join('');
+
+      const accSelect = document.getElementById('tx-filter-account');
+      const uniqueAccounts = [...new Set(state.accounts.filter(a => a.tx_count > 0).map(a => a.gnc_path))].sort();
+      accSelect.innerHTML = `<option value="">All Accounts</option>` + uniqueAccounts.map(p =>
+        `<option value="${escapeHtml(p)}">${escapeHtml(p.split(':').slice(-2).join(' › '))}</option>`
+      ).join('');
+
+      // Datalist for subcategories
+      const subcatDatalist = document.getElementById('subcat-datalist');
+      const uniqueSubcats = [...new Set(state.accounts.map(a => a.category_name))].sort();
+      subcatDatalist.innerHTML = uniqueSubcats.map(s => `<option value="${escapeHtml(s)}"></option>`).join('');
+
+      // Category Mappings tab Wealthfolio category filter dropdown
+      const mapParentSelect = document.getElementById('mapping-filter-parent');
+      if (mapParentSelect) {
+        const countsByParent = {};
+        state.accounts.forEach(a => {
+          const pId = a.parent_id || a.category_id;
+          if (pId) countsByParent[pId] = (countsByParent[pId] || 0) + 1;
+        });
+
+        const currentVal = mapParentSelect.value;
+        mapParentSelect.innerHTML = `<option value="">All Wealthfolio Categories (${state.accounts.length})</option>` +
+          state.parents.map(p => {
+            const cnt = countsByParent[p.id] || 0;
+            return `<option value="${p.id}" ${p.id === currentVal ? 'selected' : ''}>${escapeHtml(p.name)} (${cnt} accounts)</option>`;
+          }).join('');
+      }
+    }
+
+    // --- TRANSACTIONS API & RENDERING ---
+    async function fetchTransactions() {
+      const tbody = document.getElementById('tx-tbody');
+      tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: var(--text-muted); padding: 2rem;">Loading transactions...</td></tr>`;
+
+      const params = new URLSearchParams({
+        page: txState.page,
+        limit: txState.limit,
+        sort: txState.sort,
+        order: txState.order
+      });
+
+      if (txState.q) params.set('q', txState.q);
+      if (txState.budgetGroup && txState.budgetGroup !== 'ALL') {
+        if (txState.budgetGroup === 'REVIEW') {
+          params.set('needs_review', '1');
+        } else if (txState.budgetGroup === 'DIRECT') {
+          params.set('direct', '1');
+        } else if (txState.budgetGroup === 'UNCAT') {
+          params.set('uncategorized', '1');
+        } else if (txState.budgetGroup === 'TRANSFER_OUT') {
+          params.set('activity_type', 'TRANSFER_OUT');
+        } else if (txState.budgetGroup === 'TRANSFER_IN') {
+          params.set('activity_type', 'TRANSFER_IN');
+        } else {
+          params.set('budget_group', txState.budgetGroup);
+        }
+      }
+      if (txState.activityType) params.set('activity_type', txState.activityType);
+      if (txState.categoryId) params.set('category_id', txState.categoryId);
+      if (txState.account) params.set('account', txState.account);
+
+      try {
+        const res = await fetch(`/api/transactions?${params.toString()}`);
+        const data = await res.json();
+        txState.items = data.transactions || [];
+        txState.totalCount = data.total || 0;
+        txState.filteredCount = data.filtered_total || 0;
+        txState.page = data.page || 1;
+        txState.totalPages = data.total_pages || 1;
+
+        if (data.direct_total !== undefined) {
+          state.direct_tx_count = data.direct_total;
+          const directEl = document.getElementById('tpill-direct-cnt');
+          if (directEl) directEl.textContent = data.direct_total.toLocaleString();
+        }
+
+        if (data.type_counts) {
+          const xferOutEl = document.getElementById('tpill-xfer-out-cnt');
+          if (xferOutEl) xferOutEl.textContent = (data.type_counts.TRANSFER_OUT || 0).toLocaleString();
+          const xferInEl = document.getElementById('tpill-xfer-in-cnt');
+          if (xferInEl) xferInEl.textContent = (data.type_counts.TRANSFER_IN || 0).toLocaleString();
+        }
+
+        if (data.uncategorized_total !== undefined) {
+          state.uncategorized_tx_count = data.uncategorized_total;
+          const uncatEl = document.getElementById('tpill-uncat-cnt');
+          if (uncatEl) uncatEl.textContent = data.uncategorized_total.toLocaleString();
+          const badgeOther = document.getElementById('badge-other-txs-count');
+          if (badgeOther) {
+            if (data.uncategorized_total > 0) {
+              badgeOther.textContent = `${data.uncategorized_total} uncategorized`;
+              badgeOther.style.display = 'inline-block';
+            } else if (state.direct_tx_count > 0) {
+              badgeOther.textContent = `${state.direct_tx_count} direct`;
+              badgeOther.style.display = 'inline-block';
+            } else {
+              badgeOther.style.display = 'none';
+            }
+          }
+        }
+
+        renderTransactionsTable();
+        updateTxPagination();
+
+        document.getElementById('badge-all-txs-count').textContent = txState.totalCount.toLocaleString();
+        document.getElementById('tpill-all-cnt').textContent = txState.totalCount.toLocaleString();
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: var(--danger); padding: 2rem;">Failed to load transactions: ${err}</td></tr>`;
+      }
+    }
+
+    function renderTransactionsTable() {
+      const tbody = document.getElementById('tx-tbody');
+      if (txState.items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No transactions matching current filters.</td></tr>`;
+        updateBulkBar();
+        return;
+      }
+
+      tbody.innerHTML = txState.items.map((tx, idx) => {
+        let amountClass = 'amount-outflow';
+        let sign = '-';
+        if (tx.activity_type === 'TRANSFER_OUT') {
+          amountClass = 'amount-xfer';
+          sign = '-';
+        } else if (tx.activity_type === 'TRANSFER_IN') {
+          amountClass = 'amount-xfer';
+          sign = '+';
+        } else if (tx.direction === 'inflow') {
+          amountClass = 'amount-inflow';
+          sign = '+';
+        } else if (tx.budget_group === 'TRANSFER') {
+          amountClass = 'amount-xfer';
+          sign = '';
+        }
+
+        const cleanAcc = tx.account ? tx.account.split(':').slice(-2).join(' › ') : '-';
+        const cleanCounter = tx.counterpart ? tx.counterpart.split(':').slice(-2).join(' › ') : '(No Counterpart)';
+        const isChecked = state.selectedTxGuids.has(tx.guid);
+        const isUncat = tx.direction === 'outflow' && (
+          !tx.category_id ||
+          tx.category_id === 'cat_unmapped' ||
+          tx.category_id === 'cat_gnc_other_expenses_uncat' ||
+          ((tx.subcategory_name === 'Uncategorized Expense' || tx.subcategory_name === 'Other Expenses') && !tx.counterpart) ||
+          (tx.is_direct && (!tx.subcategory_name || tx.subcategory_name === tx.category_name))
+        );
+        const rowBg = isChecked ? 'background: #1e1b4b33;' : (isUncat ? 'background: rgba(239, 68, 68, 0.12);' : (tx.is_direct ? 'background: rgba(245, 158, 11, 0.12);' : ''));
+
+        return `
+          <tr style="${rowBg}">
+            <td style="text-align: center;">
+              <input type="checkbox" class="tx-cb" value="${tx.guid}" ${isChecked ? 'checked' : ''} onchange="onTxRowSelectChange('${tx.guid}', this.checked)">
+            </td>
+            <td class="mono-cell">${tx.date}</td>
+            <td title="${escapeHtml(tx.account)}">
+              <strong style="font-size: 0.825rem;">${escapeHtml(cleanAcc)}</strong>
+            </td>
+            <td title="${escapeHtml(tx.counterpart)}">
+              <span class="mono-cell" style="color: #cbd5e1;">${escapeHtml(cleanCounter)}</span>
+            </td>
+            <td>
+              <div style="font-weight: 600; color: #f1f5f9;">${escapeHtml(tx.payee || '(No Description)')}</div>
+              ${tx.memo && tx.memo !== tx.payee ? `<div style="font-size: 0.725rem; color: var(--text-muted);">${escapeHtml(tx.memo)}</div>` : ''}
+            </td>
+            <td style="text-align: center;">
+              ${getActivityTypeBadge(tx.activity_type)}
+            </td>
+            <td style="text-align: right;">
+              <span class="${amountClass}">${sign}$${tx.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            </td>
+            <td style="text-align: center;">
+              ${getBudgetGroupBadge(tx.budget_group)}
+            </td>
+            <td>
+              <span style="font-weight: 500;">${escapeHtml(tx.category_name)}</span>
+            </td>
+            <td>
+              ${isUncat
+                ? `<span class="status-badge danger" title="Unassigned spending will appear uncategorized in Wealthfolio. Click Assign to categorize.">⚠️ ${escapeHtml(tx.subcategory_name || 'Uncategorized')}</span>`
+                : (tx.is_direct 
+                    ? `<span class="status-badge warning" title="Assigned directly to root category without a subcategory">⚠️ ${escapeHtml(tx.subcategory_name || 'Direct / None')}</span>`
+                    : `<span style="color: #94a3b8;">${escapeHtml(tx.subcategory_name)}</span>`)
+              }
+              ${tx.is_override ? `<span class="status-badge custom" style="margin-left: 0.35rem; font-size: 0.65rem;">Override</span>` : ''}
+            </td>
+            <td style="text-align: center;">
+              <button class="btn-primary" style="padding: 0.25rem 0.55rem; font-size: 0.75rem;" onclick="openAssignModal(${idx})">Assign / Edit</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      updateBulkBar();
+    }
+
+    function updateTxPagination() {
+      const start = txState.filteredCount === 0 ? 0 : (txState.page - 1) * txState.limit + 1;
+      const end = Math.min(txState.page * txState.limit, txState.filteredCount);
+      document.getElementById('tx-pagination-info').textContent =
+        `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${txState.filteredCount.toLocaleString()} transactions (Filtered from ${txState.totalCount.toLocaleString()})`;
+
+      document.getElementById('pg-current').textContent = txState.page;
+      document.getElementById('pg-total').textContent = txState.totalPages;
+
+      document.getElementById('pg-first').disabled = (txState.page <= 1);
+      document.getElementById('pg-prev').disabled = (txState.page <= 1);
+      document.getElementById('pg-next').disabled = (txState.page >= txState.totalPages);
+      document.getElementById('pg-last').disabled = (txState.page >= txState.totalPages);
+    }
+
+    function goToPage(page) {
+      if (page < 1 || page > txState.totalPages) return;
+      txState.page = page;
+      fetchTransactions();
+    }
+
+    function onPageSizeChange(val) {
+      txState.limit = parseInt(val, 10);
+      txState.page = 1;
+      fetchTransactions();
+    }
+
+    function setTxFilter(bg) {
+      txState.budgetGroup = bg;
+      txState.page = 1;
+      const pills = ['all', 'uncat', 'direct', 'review', 'transfer-out', 'transfer-in', 'needs', 'wants', 'investment', 'savings', 'giving', 'personal', 'other', 'income', 'transfer'];
+      pills.forEach(p => {
+        const el = document.getElementById(`tpill-${p}`);
+        if (el) {
+          const isActive = (bg.toLowerCase() === p) ||
+            (bg === 'TRANSFER_OUT' && p === 'transfer-out') ||
+            (bg === 'TRANSFER_IN' && p === 'transfer-in');
+          el.classList.toggle('active', isActive);
+        }
+      });
+      fetchTransactions();
+    }
+
+    function onTxFilterChange() {
+      const typeSelect = document.getElementById('tx-filter-type');
+      if (typeSelect) txState.activityType = typeSelect.value;
+      txState.categoryId = document.getElementById('tx-filter-parent').value;
+      txState.account = document.getElementById('tx-filter-account').value;
+      txState.page = 1;
+      fetchTransactions();
+    }
+
+    function onTxSearchDebounced() {
+      clearTimeout(txState.searchTimeout);
+      txState.searchTimeout = setTimeout(() => {
+        txState.q = document.getElementById('tx-search-input').value.trim();
+        txState.page = 1;
+        fetchTransactions();
+      }, 250);
+    }
+
+    function sortTxTable(col) {
+      if (txState.sort === col) {
+        txState.order = txState.order === 'asc' ? 'desc' : 'asc';
+      } else {
+        txState.sort = col;
+        txState.order = (col === 'date' || col === 'amount') ? 'desc' : 'asc';
+      }
+
+      ['date', 'account', 'counterpart', 'payee', 'type', 'amount', 'bg', 'cat', 'subcat'].forEach(id => {
+        const th = document.getElementById(`th-tx-${id}`);
+        if (!th) return;
+        const icon = th.querySelector('.sort-icon');
+        const colMap = { date: 'date', account: 'account', counterpart: 'counterpart', payee: 'payee', type: 'activity_type', amount: 'amount', bg: 'budget_group', cat: 'category', subcat: 'subcategory' };
+        if (txState.sort === colMap[id]) {
+          th.classList.add('sorted');
+          icon.textContent = txState.order === 'asc' ? '▲' : '▼';
+        } else {
+          th.classList.remove('sorted');
+          icon.textContent = '↕';
+        }
+      });
+
+      txState.page = 1;
+      fetchTransactions();
+    }
+
+    // --- ASSIGN TRANSACTION MODAL ---
+    function openAssignModal(idx) {
+      const tx = txState.items[idx];
+      if (!tx) return;
+      txState.activeTx = tx;
+
+      document.getElementById('m-tx-date').textContent = tx.date;
+      document.getElementById('m-tx-amount').textContent = `$${tx.amount.toFixed(2)}`;
+      document.getElementById('m-tx-account').textContent = tx.account.split(':').slice(-2).join(' › ');
+      document.getElementById('m-tx-payee').textContent = tx.payee || '(No Description)';
+      const mTypeEl = document.getElementById('m-tx-type');
+      if (mTypeEl) {
+        mTypeEl.innerHTML = getActivityTypeBadge(tx.activity_type);
+      }
+      document.getElementById('m-tx-counterpart').textContent = tx.counterpart || '(No Counterpart)';
+
+      const parentSelect = document.getElementById('m-tx-parent');
+      parentSelect.innerHTML = state.parents.map(p =>
+        `<option value="${p.id}" ${p.id === tx.category_id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.budget_group})</option>`
+      ).join('');
+
+      document.getElementById('m-tx-subcat').value = tx.subcategory_name || '';
+
+      const bgSelect = document.getElementById('m-tx-bg');
+      const bgs = ['NEEDS', 'WANTS', 'INVESTMENT', 'SAVINGS', 'GIVING', 'PERSONAL', 'OTHER', 'INCOME'];
+      bgSelect.innerHTML = bgs.map(b =>
+        `<option value="${b}" ${b === tx.budget_group ? 'selected' : ''}>${b}</option>`
+      ).join('');
+
+      // Cleaned payee pattern
+      const cleanPayee = (tx.payee || '').replace(/\s+/g, ' ').trim();
+      const patternInput = document.getElementById('m-rule-pattern');
+      if (patternInput) patternInput.value = cleanPayee;
+      document.getElementById('m-account-preview').textContent = tx.counterpart || 'N/A';
+
+      // Default scope: recommend account mapping if counterpart exists, else payee rule
+      if (tx.counterpart_guid && tx.counterpart) {
+        const scAcc = document.getElementById('scope-account');
+        if (scAcc) scAcc.checked = true;
+      } else {
+        const scRule = document.getElementById('scope-rule');
+        if (scRule) scRule.checked = true;
+      }
+
+      document.getElementById('assign-modal').style.display = 'flex';
+    }
+
+    function onModalParentChange(parentId) {
+      const p = state.parents.find(x => x.id === parentId);
+      if (p) {
+        document.getElementById('m-tx-bg').value = p.budget_group;
+      }
+    }
+
+    function closeAssignModal() {
+      document.getElementById('assign-modal').style.display = 'none';
+      txState.activeTx = null;
+    }
+
+    async function submitAssignModal() {
+      if (!txState.activeTx) return;
+      const tx = txState.activeTx;
+      const parentId = document.getElementById('m-tx-parent').value;
+      const subcatName = document.getElementById('m-tx-subcat').value.trim();
+      const budgetGroup = document.getElementById('m-tx-bg').value;
+      const scopeRadio = document.querySelector('input[name="assign-scope"]:checked');
+      const scope = scopeRadio ? scopeRadio.value : 'account';
+      const payeePattern = (document.getElementById('m-rule-pattern')?.value || tx.payee || '').trim();
+
+      const payload = {
+        scope: scope,
+        gnc_trn_guid: tx.guid,
+        counterpart_guid: tx.counterpart_guid,
+        payee_pattern: payeePattern,
+        parent_id: parentId,
+        subcat_name: subcatName,
+        budget_group: budgetGroup
+      };
+
+      try {
+        const res = await fetch('/api/transaction_override', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          closeAssignModal();
+          showToast(`Applied ${scope} mapping successfully!`);
+          await loadState();
+          await fetchTransactions();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Request failed: ' + err);
+      }
+    }
+
+    async function refreshAllData() {
+      showToast('Refreshing data & re-evaluating rules...');
+      try {
+        const res = await fetch('/api/refresh', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          await loadState();
+          await fetchTransactions();
+          showToast('Data & rules refreshed successfully!');
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to refresh data: ' + err);
+      }
+    }
+
+    // --- BULK SELECTION & MASS ASSIGN ---
+    function updateBulkBar() {
+      const bar = document.getElementById('tx-bulk-bar');
+      const countEl = document.getElementById('bulk-selected-count');
+      const selectAllCb = document.getElementById('th-tx-select-all');
+      const count = state.selectedTxGuids.size;
+
+      if (bar) {
+        bar.style.display = count > 0 ? 'flex' : 'none';
+      }
+      if (countEl) {
+        countEl.textContent = count.toLocaleString();
+      }
+      if (selectAllCb) {
+        selectAllCb.checked = txState.items.length > 0 && txState.items.every(t => state.selectedTxGuids.has(t.guid));
+      }
+    }
+
+    function toggleSelectAllTx(checked) {
+      txState.items.forEach(t => {
+        if (checked) state.selectedTxGuids.add(t.guid);
+        else state.selectedTxGuids.delete(t.guid);
+      });
+      document.querySelectorAll('.tx-cb').forEach(cb => { cb.checked = checked; });
+      updateBulkBar();
+    }
+
+    function onTxRowSelectChange(guid, checked) {
+      if (checked) state.selectedTxGuids.add(guid);
+      else state.selectedTxGuids.delete(guid);
+      updateBulkBar();
+    }
+
+    function clearTxSelection() {
+      state.selectedTxGuids.clear();
+      document.querySelectorAll('.tx-cb').forEach(cb => { cb.checked = false; });
+      const selectAllCb = document.getElementById('th-tx-select-all');
+      if (selectAllCb) selectAllCb.checked = false;
+      updateBulkBar();
+    }
+
+    function openBulkAssignModal() {
+      const count = state.selectedTxGuids.size;
+      if (count === 0) return;
+
+      document.getElementById('m-bulk-count').textContent = count.toLocaleString();
+
+      const parentSelect = document.getElementById('m-bulk-parent');
+      parentSelect.innerHTML = state.parents.map(p =>
+        `<option value="${p.id}">${escapeHtml(p.name)} (${p.budget_group})</option>`
+      ).join('');
+
+      document.getElementById('m-bulk-subcat').value = '';
+
+      const bgSelect = document.getElementById('m-bulk-bg');
+      const bgs = ['NEEDS', 'WANTS', 'INVESTMENT', 'SAVINGS', 'GIVING', 'PERSONAL', 'OTHER', 'INCOME'];
+      bgSelect.innerHTML = bgs.map(b => `<option value="${b}">${b}</option>`).join('');
+
+      if (state.parents.length > 0) {
+        document.getElementById('m-bulk-bg').value = state.parents[0].budget_group;
+      }
+
+      document.getElementById('bulk-assign-modal').style.display = 'flex';
+    }
+
+    function onBulkModalParentChange(parentId) {
+      const p = state.parents.find(x => x.id === parentId);
+      if (p) {
+        document.getElementById('m-bulk-bg').value = p.budget_group;
+      }
+    }
+
+    function closeBulkAssignModal() {
+      document.getElementById('bulk-assign-modal').style.display = 'none';
+    }
+
+    async function submitBulkAssignModal() {
+      const count = state.selectedTxGuids.size;
+      if (count === 0) return;
+
+      const parentId = document.getElementById('m-bulk-parent').value;
+      const subcatName = document.getElementById('m-bulk-subcat').value.trim();
+      const budgetGroup = document.getElementById('m-bulk-bg').value;
+      const scopeRadio = document.querySelector('input[name="bulk-scope"]:checked');
+      const scope = scopeRadio ? scopeRadio.value : 'account';
+
+      const payload = {
+        trn_guids: Array.from(state.selectedTxGuids),
+        scope: scope,
+        parent_id: parentId,
+        subcat_name: subcatName,
+        budget_group: budgetGroup
+      };
+
+      try {
+        const res = await fetch('/api/bulk_assign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          closeBulkAssignModal();
+          clearTxSelection();
+          showToast(data.message || 'Mass assignment applied successfully!');
+          await loadState();
+          await fetchTransactions();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Bulk request failed: ' + err);
+      }
+    }
+
+    // --- CATEGORIES & BUDGET GROUPS MANAGER ---
+    function renderCategoriesManager() {
+      const tbody = document.getElementById('categories-tbody');
+      const bgs = ['NEEDS', 'WANTS', 'INVESTMENT', 'SAVINGS', 'GIVING', 'PERSONAL', 'OTHER', 'INCOME'];
+
+      tbody.innerHTML = state.parents.map(p => {
+        const options = bgs.map(bg =>
+          `<option value="${bg}" ${bg === p.budget_group ? 'selected' : ''}>${bg}</option>`
+        ).join('');
+
+        return `
+          <tr>
+            <td>
+              <strong style="font-size: 0.95rem;">${escapeHtml(p.name)}</strong>
+              ${p.is_custom ? `<span class="status-badge custom" style="margin-left: 0.5rem;">Custom Parent</span>` : ''}
+            </td>
+            <td><code style="font-size: 0.8rem; color: #94a3b8;">${escapeHtml(p.taxonomy_id)}</code></td>
+            <td>
+              <select class="select-parent" style="max-width: 180px;" onchange="updateParentBudgetGroup('${p.id}', this.value)">
+                ${options}
+              </select>
+            </td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <span style="display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: ${p.color}; border: 1px solid #ffffff44;"></span>
+                <span style="font-size: 0.8rem; font-family: monospace;">${p.color}</span>
+              </div>
+            </td>
+            <td style="text-align: right;">
+              ${getBudgetGroupBadge(p.budget_group)}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function updateParentBudgetGroup(categoryId, budgetGroup) {
+      try {
+        const res = await fetch('/api/budget_groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category_id: categoryId, budget_group: budgetGroup })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Updated ${categoryId} to ${budgetGroup}`);
+          await loadState();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to update: ' + err);
+      }
+    }
+
+    function openAddParentModal() {
+      document.getElementById('add-parent-modal').style.display = 'flex';
+    }
+    function closeAddParentModal() {
+      document.getElementById('add-parent-modal').style.display = 'none';
+    }
+
+    async function submitAddParent() {
+      const name = document.getElementById('new-cat-name').value.trim();
+      const budgetGroup = document.getElementById('new-cat-bg').value;
+      const color = document.getElementById('new-cat-color').value;
+      const taxonomy = document.getElementById('new-cat-tax').value;
+
+      if (!name) {
+        alert('Please enter category name');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/categories/custom_parent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, budget_group: budgetGroup, color: color, taxonomy_id: taxonomy })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          closeAddParentModal();
+          showToast(`Created Parent Category: ${name}`);
+          document.getElementById('new-cat-name').value = '';
+          await loadState();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to create parent: ' + err);
+      }
+    }
+
+    // --- RULES MANAGER ---
+    async function loadRules() {
+      try {
+        const res = await fetch('/api/rules');
+        const data = await res.json();
+        state.rules = data.rules || [];
+        renderRulesManager();
+      } catch (err) {
+        console.error('Failed to load rules:', err);
+      }
+    }
+
+    function renderRulesManager() {
+      const tbody = document.getElementById('rules-tbody');
+      if (!tbody) return;
+      if (!state.rules || state.rules.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2rem;">No payee auto-categorization rules configured. Click "Add Payee Rule" to create one.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = state.rules.map(r => {
+        const parentObj = state.parents.find(p => p.id === r.target_category_id);
+        const parentName = parentObj ? parentObj.name : r.target_category_id;
+        const subcat = r.target_subcategory || '-';
+
+        return `
+          <tr>
+            <td style="text-align: center;"><span class="tab-badge">${r.priority || 50}</span></td>
+            <td><strong>${escapeHtml(r.name || r.id)}</strong></td>
+            <td><code class="mono-cell" style="color: #60a5fa; font-size: 0.85rem;">${escapeHtml(r.match_pattern)}</code></td>
+            <td style="text-align: center;"><span class="status-badge auto" style="font-size: 0.725rem;">${escapeHtml(r.match_type || 'CONTAINS')}</span></td>
+            <td>
+              <div style="font-size: 0.85rem;">${escapeHtml(parentName)}</div>
+              ${subcat !== '-' ? `<div style="font-size: 0.75rem; color: var(--text-muted);">↳ ${escapeHtml(subcat)}</div>` : ''}
+            </td>
+            <td style="text-align: right;">
+              <button class="btn-danger" onclick="deleteRule('${escapeJs(r.id)}')" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openAddRuleModal() {
+      const parentSelect = document.getElementById('new-rule-parent');
+      if (parentSelect) {
+        parentSelect.innerHTML = state.parents.map(p =>
+          `<option value="${p.id}">${escapeHtml(p.name)} (${p.budget_group})</option>`
+        ).join('');
+      }
+      document.getElementById('new-rule-name').value = '';
+      document.getElementById('new-rule-pattern').value = '';
+      document.getElementById('new-rule-subcat').value = '';
+      document.getElementById('new-rule-priority').value = '50';
+      document.getElementById('add-rule-modal').style.display = 'flex';
+    }
+
+    function closeAddRuleModal() {
+      document.getElementById('add-rule-modal').style.display = 'none';
+    }
+
+    async function submitAddRule() {
+      const name = document.getElementById('new-rule-name').value.trim();
+      const pattern = document.getElementById('new-rule-pattern').value.trim();
+      const matchType = document.getElementById('new-rule-type').value;
+      const parentId = document.getElementById('new-rule-parent').value;
+      const subcat = document.getElementById('new-rule-subcat').value.trim();
+      const priority = parseInt(document.getElementById('new-rule-priority').value, 10) || 50;
+
+      if (!pattern) {
+        alert('Please enter a match pattern');
+        return;
+      }
+
+      const rule = {
+        name: name || pattern,
+        match_pattern: pattern,
+        match_type: matchType,
+        target_category_id: parentId,
+        target_subcategory: subcat || null,
+        priority: priority
+      };
+
+      try {
+        const res = await fetch('/api/rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rule })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          closeAddRuleModal();
+          showToast(`Created rule: ${rule.name}`);
+          await loadRules();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to add rule: ' + err);
+      }
+    }
+
+    async function deleteRule(ruleId) {
+      if (!confirm(`Delete rule "${ruleId}"?`)) return;
+      try {
+        const res = await fetch(`/api/rules/${encodeURIComponent(ruleId)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Deleted rule: ${ruleId}`);
+          await loadRules();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to delete rule: ' + err);
+      }
+    }
+
+    // --- APPLY TO BRANCH (SUBTREE MODAL) ---
+    let _activeSubtreeBranch = '';
+
+    function openSubtreeModal(parentBranch) {
+      _activeSubtreeBranch = parentBranch;
+      const branchEl = document.getElementById('m-subtree-branch');
+      if (branchEl) branchEl.textContent = parentBranch;
+
+      const parentSelect = document.getElementById('m-subtree-parent');
+      if (parentSelect) {
+        parentSelect.innerHTML = state.parents.map(p =>
+          `<option value="${p.id}">${escapeHtml(p.name)} (${p.budget_group})</option>`
+        ).join('');
+      }
+
+      const bgSelect = document.getElementById('m-subtree-bg');
+      const bgs = ['NEEDS', 'WANTS', 'INVESTMENT', 'SAVINGS', 'GIVING', 'PERSONAL', 'OTHER', 'INCOME'];
+      if (bgSelect) {
+        bgSelect.innerHTML = bgs.map(b => `<option value="${b}">${b}</option>`).join('');
+        if (state.parents.length > 0) {
+          bgSelect.value = state.parents[0].budget_group;
+        }
+      }
+
+      document.getElementById('subtree-modal').style.display = 'flex';
+    }
+
+    function onSubtreeModalParentChange(parentId) {
+      const p = state.parents.find(x => x.id === parentId);
+      if (p) {
+        const bgSelect = document.getElementById('m-subtree-bg');
+        if (bgSelect) bgSelect.value = p.budget_group;
+      }
+    }
+
+    function closeSubtreeModal() {
+      document.getElementById('subtree-modal').style.display = 'none';
+      _activeSubtreeBranch = '';
+    }
+
+    async function submitSubtreeModal() {
+      if (!_activeSubtreeBranch) return;
+      const parentId = document.getElementById('m-subtree-parent').value;
+      const budgetGroup = document.getElementById('m-subtree-bg').value;
+
+      try {
+        const res = await fetch('/api/mapping/subtree', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            parent_branch: _activeSubtreeBranch,
+            parent_id: parentId,
+            budget_group: budgetGroup
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          closeSubtreeModal();
+          showToast(data.message || `Assigned branch accounts successfully.`);
+          await loadState();
+        } else {
+          alert('Error: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to apply to branch: ' + err);
+      }
+    }
+
+    // --- ACCOUNTS (ASSETS & LIABILITIES) VIEW ---
+    function setAccountFilter(filter) {
+      state.accountFilter = filter;
+      const pillMap = {
+        'ALL_BS': 'apill-bs',
+        'IMPORTED': 'apill-imported',
+        'MORTGAGES': 'apill-mortgages',
+        'ASSETS': 'apill-assets',
+        'LIABILITIES': 'apill-liabilities',
+        'EQUITY': 'apill-equity',
+        'IGNORED': 'apill-ignored',
+        'ALL': 'apill-all'
+      };
+      Object.keys(pillMap).forEach(k => {
+        const el = document.getElementById(pillMap[k]);
+        if (el) el.classList.toggle('active', filter === k);
+      });
+      renderAccounts();
+    }
+
+    function handleAccountSearch() {
+      state.accountSearchQuery = document.getElementById('account-search-input').value.toLowerCase().trim();
+      renderAccounts();
+    }
+
+    function sortAccounts(col) {
+      if (state.accountSort.col === col) {
+        state.accountSort.asc = !state.accountSort.asc;
+      } else {
+        state.accountSort.col = col;
+        state.accountSort.asc = (col === 'gnc_path' || col === 'role' || col === 'wf_name');
+      }
+      renderAccounts();
+    }
+
+    function getAccountEffectiveRole(acc) {
+      const staged = state.stagedAccountChanges.get(acc.gnc_guid);
+      return (staged && staged.role !== undefined) ? staged.role : acc.role;
+    }
+
+    function getAccountEffectiveWfName(acc) {
+      const staged = state.stagedAccountChanges.get(acc.gnc_guid);
+      if (staged && staged.wf_name !== undefined) return staged.wf_name;
+      const role = getAccountEffectiveRole(acc);
+      if (role.startsWith('MIGRATE_')) {
+        return acc.wf_name || acc.alt_asset_name || acc.gnc_path.split(':').pop();
+      }
+      return acc.wf_name || acc.alt_asset_name || '';
+    }
+
+    function renderAccounts() {
+      const tbody = document.getElementById('accounts-tbody');
+      if (!tbody) return;
+
+      const hideZero = document.getElementById('hide-zero-tx-accounts')?.checked;
+
+      // Update header sort indicators
+      const colMap = {
+        'path': 'gnc_path',
+        'tx': 'tx_count',
+        'bal': 'gnc_balance',
+        'import': 'is_imported',
+        'wfname': 'wf_name',
+        'wftype': 'wf_account_type',
+        'group': 'wf_group',
+        'status': 'is_archived'
+      };
+      Object.keys(colMap).forEach(id => {
+        const th = document.getElementById(`th-acc-${id}`);
+        if (!th) return;
+        const icon = th.querySelector('.sort-icon');
+        if (state.accountSort.col === colMap[id]) {
+          th.classList.add('sorted');
+          if (icon) icon.textContent = state.accountSort.asc ? '▲' : '▼';
+        } else {
+          th.classList.remove('sorted');
+          if (icon) icon.textContent = '↕';
+        }
+      });
+
+      let filtered = state.gnc_accounts.filter(a => {
+        const effRole = getAccountEffectiveRole(a);
+        const isImp = effRole.startsWith('MIGRATE_');
+
+        // Tab filter
+        if (state.accountFilter === 'ALL_BS' && !a.is_balance_sheet) return false;
+        if (state.accountFilter === 'IMPORTED' && !isImp) return false;
+        if (state.accountFilter === 'MORTGAGES' && !a.is_mortgage_loan) return false;
+        if (state.accountFilter === 'ASSETS' && !(a.gnc_path.startsWith('Assets') || ['BANK', 'ASSET', 'CASH', 'STOCK', 'MUTUAL'].includes(a.acct_type))) return false;
+        if (state.accountFilter === 'LIABILITIES' && !(a.gnc_path.startsWith('Liabilities') || ['CREDIT', 'LIABILITY'].includes(a.acct_type))) return false;
+        if (state.accountFilter === 'EQUITY' && !(a.gnc_path.startsWith('Equity') || a.acct_type === 'EQUITY')) return false;
+        if (state.accountFilter === 'IGNORED' && isImp) return false;
+
+        // Zero-tx filter
+        if (hideZero && a.tx_count === 0) return false;
+
+        // Search query
+        if (state.accountSearchQuery) {
+          const q = state.accountSearchQuery;
+          const wfName = (getAccountEffectiveWfName(a) || '').toLowerCase();
+          const p = a.gnc_path.toLowerCase();
+          const alt = (a.alt_asset_name || '').toLowerCase();
+          const matchMortgage = (q === 'mortgage' || q === 'loan') && a.is_mortgage_loan;
+          if (!p.includes(q) && !wfName.includes(q) && !alt.includes(q) && !matchMortgage) return false;
+        }
+
+        return true;
+      });
+
+      // Sort
+      const col = state.accountSort.col;
+      const asc = state.accountSort.asc ? 1 : -1;
+      filtered.sort((a, b) => {
+        let valA, valB;
+        if (col === 'gnc_path') {
+          valA = a.gnc_path.toLowerCase();
+          valB = b.gnc_path.toLowerCase();
+        } else if (col === 'tx_count') {
+          valA = a.tx_count;
+          valB = b.tx_count;
+        } else if (col === 'gnc_balance') {
+          valA = a.gnc_balance || 0;
+          valB = b.gnc_balance || 0;
+        } else if (col === 'wf_name') {
+          valA = getAccountEffectiveWfName(a).toLowerCase();
+          valB = getAccountEffectiveWfName(b).toLowerCase();
+        } else if (col === 'wf_account_type') {
+          const stagedA = state.stagedAccountChanges.get(a.gnc_guid);
+          valA = (stagedA?.wf_account_type || a.wf_account_type || '').toLowerCase();
+          const stagedB = state.stagedAccountChanges.get(b.gnc_guid);
+          valB = (stagedB?.wf_account_type || b.wf_account_type || '').toLowerCase();
+        } else if (col === 'wf_group') {
+          const stagedA = state.stagedAccountChanges.get(a.gnc_guid);
+          valA = (stagedA?.wf_group || a.wf_group || '').toLowerCase();
+          const stagedB = state.stagedAccountChanges.get(b.gnc_guid);
+          valB = (stagedB?.wf_group || b.wf_group || '').toLowerCase();
+        } else if (col === 'is_imported') {
+          const effA = getAccountEffectiveRole(a);
+          const effB = getAccountEffectiveRole(b);
+          valA = effA.startsWith('MIGRATE_') ? 1 : 0;
+          valB = effB.startsWith('MIGRATE_') ? 1 : 0;
+        } else if (col === 'is_archived') {
+          const stagedA = state.stagedAccountChanges.get(a.gnc_guid);
+          const stagedB = state.stagedAccountChanges.get(b.gnc_guid);
+          valA = (stagedA?.is_archived !== undefined ? stagedA.is_archived : a.is_archived) ? 1 : 0;
+          valB = (stagedB?.is_archived !== undefined ? stagedB.is_archived : b.is_archived) ? 1 : 0;
+        }
+        if (valA < valB) return -1 * asc;
+        if (valA > valB) return 1 * asc;
+        return 0;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">No accounts match the current filter.</td></tr>`;
+        updateAccBulkBar();
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(acc => {
+        const staged = state.stagedAccountChanges.get(acc.gnc_guid) || {};
+        const effRole = staged.role !== undefined ? staged.role : acc.role;
+        const isImp = effRole.startsWith('MIGRATE_');
+        const isChecked = state.selectedAccountGuids.has(acc.gnc_guid);
+
+        const defName = acc.alt_asset_name || acc.wf_name || acc.gnc_path.split(':').pop();
+        const effName = staged.wf_name !== undefined ? staged.wf_name : (isImp ? defName : (acc.wf_name || ''));
+
+        let defType = 'CASH';
+        if (acc.is_mortgage_loan || effRole.includes('LOAN')) defType = 'LOAN';
+        else if (effRole.includes('CARD') || acc.gnc_path.includes('Credit Card')) defType = 'CREDIT_CARD';
+
+        const effType = staged.wf_account_type !== undefined ? staged.wf_account_type : (acc.wf_account_type || defType);
+
+        let defGroup = 'Banking';
+        if (effRole.includes('ARCHIVED') || acc.gnc_path.includes('Archived')) defGroup = 'Archived';
+        else if (effType === 'LOAN') defGroup = 'Loans';
+        else if (effType === 'CREDIT_CARD') defGroup = 'Credit Cards';
+
+        const effGroup = staged.wf_group !== undefined ? staged.wf_group : (acc.wf_group || defGroup);
+        const effStatus = (staged.is_archived !== undefined ? staged.is_archived : acc.is_archived) ? 'ARCHIVED' : 'ACTIVE';
+
+        // Account type badge
+        let typeClass = 'other';
+        const act = (acc.acct_type || '').toUpperCase();
+        if (act === 'BANK' || act === 'CASH') typeClass = 'bank';
+        else if (act === 'CREDIT') typeClass = 'credit';
+        else if (act === 'ASSET' || act === 'MUTUAL' || act === 'STOCK') typeClass = 'asset';
+        else if (act === 'LIABILITY') typeClass = 'liability';
+        else if (act === 'EQUITY') typeClass = 'equity';
+
+        const pathParts = acc.gnc_path.split(':');
+        const leafName = pathParts.pop();
+        const prefix = pathParts.join(' › ');
+
+        const isAlt = !!acc.alt_asset_name;
+        const scopeVal = isAlt ? 'NET_WORTH' : (isImp ? 'IMPORTED' : 'EXCLUDED');
+
+        return `
+          <tr id="acc-row-${acc.gnc_guid}" style="${isChecked ? 'background: #1e1b4b33;' : (staged.role || staged.wf_name || staged.wf_group ? 'background: #1e1b4b22;' : '')}">
+            <td style="text-align: center;">
+              <input type="checkbox" class="acc-cb" value="${acc.gnc_guid}" ${isChecked ? 'checked' : ''} onchange="onAccRowSelectChange('${acc.gnc_guid}', this.checked)">
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column; gap: 0.2rem;">
+                <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                  <span class="acct-type-badge ${typeClass}">${escapeHtml(acc.acct_type || 'ACCT')}</span>
+                  ${acc.is_mortgage_loan ? `<span class="mortgage-badge">🏠 Mortgage / Loan</span>` : ''}
+                </div>
+                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  ${prefix ? `<span style="color: var(--text-muted); font-size: 0.8rem;">${escapeHtml(prefix)} › </span>` : ''}
+                  <strong style="color: var(--text);">${escapeHtml(leafName)}</strong>
+                </div>
+                ${acc.alt_asset_name ? `<div style="font-size: 0.75rem; color: #38bdf8;">Linked Wealthfolio Asset: <strong>${escapeHtml(acc.alt_asset_name)}</strong></div>` : ''}
+              </div>
+            </td>
+            <td style="text-align: center;">
+              ${acc.tx_count > 0 ? `<span class="tx-badge has-tx">${acc.tx_count.toLocaleString()}</span>` : `<span class="tx-badge zero-tx">0</span>`}
+            </td>
+            <td style="text-align: right; font-family: monospace; font-size: 0.825rem; font-weight: 500;">
+              <span style="color: ${acc.gnc_balance < 0 ? '#f87171' : (acc.gnc_balance > 0 ? '#34d399' : 'var(--text-muted)')};">
+                ${acc.gnc_balance !== undefined ? `${acc.gnc_balance < 0 ? '-' : ''}$${Math.abs(acc.gnc_balance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-'}
+              </span>
+            </td>
+            <td style="text-align: center;">
+              <select class="select-parent" style="font-size: 0.825rem; font-weight: 600; ${scopeVal === 'IMPORTED' ? 'color: #34d399; border-color: #059669;' : (scopeVal === 'NET_WORTH' ? 'color: #38bdf8; border-color: #0284c7;' : 'color: #94a3b8;')}" onchange="onAccountScopeChange('${acc.gnc_guid}', this.value)">
+                <option value="IMPORTED" ${scopeVal === 'IMPORTED' ? 'selected' : ''}>✓ Imported Account</option>
+                <option value="NET_WORTH" ${scopeVal === 'NET_WORTH' ? 'selected' : ''}>🏛️ Net Worth Asset</option>
+                <option value="EXCLUDED" ${scopeVal === 'EXCLUDED' ? 'selected' : ''}>⊘ Excluded / External</option>
+              </select>
+            </td>
+            <td>
+              ${isAlt
+                ? `<span style="color: #38bdf8; font-size: 0.85rem; font-weight: 600;">🏛️ ${escapeHtml(acc.alt_display_code || 'Asset')}</span>`
+                : `<select class="select-parent" style="font-size: 0.825rem; ${!isImp ? 'opacity: 0.6;' : ''}" onchange="onAccountFieldChange('${acc.gnc_guid}', 'wf_account_type', this.value)">
+                    <option value="CASH" ${effType === 'CASH' ? 'selected' : ''}>💵 Cash / Banking</option>
+                    <option value="CREDIT_CARD" ${effType === 'CREDIT_CARD' ? 'selected' : ''}>💳 Credit Card</option>
+                    <option value="LOAN" ${effType === 'LOAN' ? 'selected' : ''}>🏠 Mortgage / Loan</option>
+                    <option value="INVESTMENT" ${effType === 'INVESTMENT' ? 'selected' : ''}>📈 Investment Asset</option>
+                    <option value="OTHER" ${effType === 'OTHER' || effType === '-' ? 'selected' : ''}>📦 Other</option>
+                  </select>`
+              }
+            </td>
+            <td>
+              ${isAlt
+                ? `<span style="font-size: 0.825rem; color: #10b981;">🟢 Active Asset</span>`
+                : `<select class="select-parent" style="font-size: 0.825rem; ${!isImp ? 'opacity: 0.6;' : ''}" onchange="onAccountFieldChange('${acc.gnc_guid}', 'status', this.value)">
+                    <option value="ACTIVE" ${effStatus === 'ACTIVE' ? 'selected' : ''}>🟢 Active</option>
+                    <option value="ARCHIVED" ${effStatus === 'ARCHIVED' ? 'selected' : ''}>📦 Archived</option>
+                  </select>`
+              }
+            </td>
+            <td>
+              ${isAlt
+                ? `<span style="color: var(--text); font-size: 0.85rem; font-weight: 500;">${escapeHtml(acc.alt_asset_name)}</span>`
+                : `<input type="text" class="subcat-input" id="acc-name-${acc.gnc_guid}"
+                    value="${escapeHtml(effName)}"
+                    placeholder="${isImp ? 'Wealthfolio Account Name' : 'Excluded'}"
+                    style="${!isImp ? 'opacity: 0.6;' : ''}"
+                    oninput="onAccountFieldChange('${acc.gnc_guid}', 'wf_name', this.value)">`
+              }
+            </td>
+            <td>
+              ${isAlt
+                ? `<span style="color: var(--text-muted); font-size: 0.8rem;">Assets & Portfolio</span>`
+                : `<input type="text" class="subcat-input" id="acc-group-${acc.gnc_guid}"
+                    list="wf-group-datalist"
+                    value="${escapeHtml(effGroup)}"
+                    placeholder="${isImp ? 'e.g. Banking, Loans' : '-'}"
+                    style="${!isImp ? 'opacity: 0.6;' : ''}"
+                    oninput="onAccountFieldChange('${acc.gnc_guid}', 'wf_group', this.value)">`
+              }
+            </td>
+          </tr>
+        `;
+      }).join('');
+      updateAccBulkBar();
+    }
+
+    function updateAccBulkBar() {
+      const bar = document.getElementById('acc-bulk-bar');
+      const countEl = document.getElementById('acc-bulk-selected-count');
+      const selectAllCb = document.getElementById('th-acc-select-all');
+      const count = state.selectedAccountGuids.size;
+
+      if (bar) bar.style.display = count > 0 ? 'flex' : 'none';
+      if (countEl) countEl.textContent = count.toLocaleString();
+      if (selectAllCb) {
+        selectAllCb.checked = state.gnc_accounts.length > 0 && state.gnc_accounts.every(a => state.selectedAccountGuids.has(a.gnc_guid));
+      }
+    }
+
+    function toggleSelectAllAccounts(checked) {
+      state.gnc_accounts.forEach(a => {
+        if (checked) state.selectedAccountGuids.add(a.gnc_guid);
+        else state.selectedAccountGuids.delete(a.gnc_guid);
+      });
+      document.querySelectorAll('.acc-cb').forEach(cb => { cb.checked = checked; });
+      updateAccBulkBar();
+    }
+
+    function onAccRowSelectChange(guid, checked) {
+      if (checked) state.selectedAccountGuids.add(guid);
+      else state.selectedAccountGuids.delete(guid);
+      updateAccBulkBar();
+    }
+
+    function clearAccSelection() {
+      state.selectedAccountGuids.clear();
+      document.querySelectorAll('.acc-cb').forEach(cb => { cb.checked = false; });
+      const selectAllCb = document.getElementById('th-acc-select-all');
+      if (selectAllCb) selectAllCb.checked = false;
+      updateAccBulkBar();
+    }
+
+    function bulkSetAccountsImport(isImported) {
+      if (state.selectedAccountGuids.size === 0) return;
+      state.selectedAccountGuids.forEach(guid => {
+        const acc = state.gnc_accounts.find(a => a.gnc_guid === guid);
+        if (!acc) return;
+        const existing = state.stagedAccountChanges.get(guid) || {
+          gnc_guid: guid,
+          role: acc.role,
+          wf_name: acc.wf_name || acc.alt_asset_name || acc.gnc_path.split(':').pop(),
+          wf_account_type: acc.wf_account_type || (acc.is_mortgage_loan ? 'LOAN' : (acc.role.includes('CARD') ? 'CREDIT_CARD' : 'CASH')),
+          wf_group: acc.wf_group || (acc.is_mortgage_loan ? 'Loans' : (acc.role.includes('ARCHIVED') ? 'Archived' : (acc.role.includes('CARD') ? 'Credit Cards' : 'Banking'))),
+          is_active: acc.is_active,
+          is_archived: acc.is_archived
+        };
+        if (isImported) {
+          const isArch = existing.wf_group === 'Archived' || acc.gnc_path.includes('Archived') || acc.is_archived === 1;
+          const t = existing.wf_account_type;
+          if (t === 'CREDIT_CARD') existing.role = isArch ? 'MIGRATE_CARD_ARCHIVED' : 'MIGRATE_CARD_ACTIVE';
+          else if (t === 'LOAN') existing.role = isArch ? 'MIGRATE_LOAN_ARCHIVED' : 'MIGRATE_LOAN_ACTIVE';
+          else existing.role = isArch ? 'MIGRATE_CASH_ARCHIVED' : 'MIGRATE_CASH_ACTIVE';
+          existing.is_active = 1;
+          existing.is_archived = isArch ? 1 : 0;
+        } else {
+          existing.role = 'IGNORE';
+          existing.is_active = 0;
+          existing.is_archived = 0;
+        }
+        state.stagedAccountChanges.set(guid, existing);
+      });
+      updateStagedText();
+      updateCounters();
+      renderAccounts();
+      showToast(`Updated ${state.selectedAccountGuids.size} account(s).`);
+    }
+
+    function bulkSetAccountsArchive(isArchived) {
+      if (state.selectedAccountGuids.size === 0) return;
+      state.selectedAccountGuids.forEach(guid => {
+        const acc = state.gnc_accounts.find(a => a.gnc_guid === guid);
+        if (!acc) return;
+        const existing = state.stagedAccountChanges.get(guid) || {
+          gnc_guid: guid,
+          role: acc.role,
+          wf_name: acc.wf_name || acc.alt_asset_name || acc.gnc_path.split(':').pop(),
+          wf_account_type: acc.wf_account_type || (acc.is_mortgage_loan ? 'LOAN' : (acc.role.includes('CARD') ? 'CREDIT_CARD' : 'CASH')),
+          wf_group: isArchived ? 'Archived' : (acc.wf_group || 'Banking'),
+          is_active: 1,
+          is_archived: isArchived ? 1 : 0
+        };
+        existing.is_archived = isArchived ? 1 : 0;
+        if (isArchived) existing.wf_group = 'Archived';
+        if (existing.role && existing.role.startsWith('MIGRATE_')) {
+          const t = existing.wf_account_type;
+          if (t === 'CREDIT_CARD') existing.role = isArchived ? 'MIGRATE_CARD_ARCHIVED' : 'MIGRATE_CARD_ACTIVE';
+          else if (t === 'LOAN') existing.role = isArchived ? 'MIGRATE_LOAN_ARCHIVED' : 'MIGRATE_LOAN_ACTIVE';
+          else existing.role = isArchived ? 'MIGRATE_CASH_ARCHIVED' : 'MIGRATE_CASH_ACTIVE';
+        }
+        state.stagedAccountChanges.set(guid, existing);
+      });
+      updateStagedText();
+      updateCounters();
+      renderAccounts();
+      showToast(`Marked ${state.selectedAccountGuids.size} account(s) as ${isArchived ? 'Archived' : 'Active'}.`);
+    }
+
+    async function onAccountScopeChange(guid, newScope) {
+      const acc = state.gnc_accounts.find(a => a.gnc_guid === guid);
+      if (!acc) return;
+
+      if (newScope === 'NET_WORTH') {
+        const name = prompt('Enter Wealthfolio Asset Name for this account:', acc.alt_asset_name || acc.wf_name || acc.gnc_path.split(':').pop());
+        if (!name || !name.trim()) {
+          renderAccounts();
+          return;
+        }
+        const isLiability = acc.acct_type === 'LIABILITY' || acc.gnc_path.startsWith('Liabilities') || acc.is_mortgage_loan;
+        const kind = isLiability ? 'LIABILITY' : 'ASSET';
+        try {
+          const res = await fetch('/api/alternative_assets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'upsert',
+              account_path: acc.gnc_path,
+              name: name.trim(),
+              kind: kind,
+              asset_type: isLiability ? 'LOAN' : 'OTHER'
+            })
+          });
+          const data = await res.json();
+          if (data.status === 'ok') {
+            showToast(`Registered Net Worth Asset: ${name}`);
+            await loadState();
+          } else {
+            alert('Error: ' + data.error);
+          }
+        } catch (err) {
+          alert('Failed to register Net Worth asset: ' + err);
+        }
+        return;
+      }
+
+      // If switching away from NET_WORTH, delete from alternative assets
+      if (acc.alt_asset_name) {
+        try {
+          await fetch('/api/alternative_assets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'delete', account_path: acc.gnc_path })
+          });
+        } catch (e) {}
+      }
+
+      const existing = state.stagedAccountChanges.get(guid) || {
+        gnc_guid: guid,
+        role: acc.role,
+        wf_name: acc.wf_name || acc.gnc_path.split(':').pop(),
+        wf_account_type: acc.wf_account_type || (acc.is_mortgage_loan ? 'LOAN' : (acc.role.includes('CARD') ? 'CREDIT_CARD' : 'CASH')),
+        wf_group: acc.wf_group || (acc.is_mortgage_loan ? 'Loans' : (acc.role.includes('ARCHIVED') ? 'Archived' : (acc.role.includes('CARD') ? 'Credit Cards' : 'Banking'))),
+        is_active: acc.is_active,
+        is_archived: acc.is_archived
+      };
+
+      if (newScope === 'EXCLUDED') {
+        if (acc.is_mortgage_loan) existing.role = 'EXTERNAL_LOAN_PROPERTY';
+        else if (acc.gnc_path.includes('Superannuation') || acc.gnc_path.includes('Investments')) existing.role = 'EXTERNAL_SAVINGS_INVESTMENT';
+        else existing.role = 'IGNORE';
+        existing.is_active = 0;
+        existing.is_archived = 0;
+      } else {
+        const isArch = existing.wf_group === 'Archived' || acc.gnc_path.includes('Archived') || acc.is_archived === 1;
+        if (existing.wf_account_type === 'CREDIT_CARD' || acc.role.includes('CARD') || acc.gnc_path.includes('Credit Card')) {
+          existing.role = isArch ? 'MIGRATE_CARD_ARCHIVED' : 'MIGRATE_CARD_ACTIVE';
+          existing.wf_account_type = 'CREDIT_CARD';
+          if (!existing.wf_group) existing.wf_group = isArch ? 'Archived' : 'Credit Cards';
+        } else if (existing.wf_account_type === 'LOAN' || acc.is_mortgage_loan) {
+          existing.role = isArch ? 'MIGRATE_LOAN_ARCHIVED' : 'MIGRATE_LOAN_ACTIVE';
+          existing.wf_account_type = 'LOAN';
+          if (!existing.wf_group) existing.wf_group = isArch ? 'Archived' : 'Loans';
+        } else {
+          existing.role = isArch ? 'MIGRATE_CASH_ARCHIVED' : 'MIGRATE_CASH_ACTIVE';
+          existing.wf_account_type = 'CASH';
+          if (!existing.wf_group) existing.wf_group = isArch ? 'Archived' : 'Banking';
+        }
+        existing.is_active = 1;
+        existing.is_archived = isArch ? 1 : 0;
+        if (!existing.wf_name) existing.wf_name = acc.wf_name || acc.gnc_path.split(':').pop();
+      }
+
+      state.stagedAccountChanges.set(guid, existing);
+      updateStagedText();
+      updateCounters();
+      renderAccounts();
+    }
+
+    function onAccountFieldChange(guid, field, val) {
+      const acc = state.gnc_accounts.find(a => a.gnc_guid === guid);
+      if (!acc) return;
+
+      const existing = state.stagedAccountChanges.get(guid) || {
+        gnc_guid: guid,
+        role: acc.role,
+        wf_name: acc.wf_name || acc.alt_asset_name || acc.gnc_path.split(':').pop(),
+        wf_account_type: acc.wf_account_type || (acc.is_mortgage_loan ? 'LOAN' : (acc.role.includes('CARD') ? 'CREDIT_CARD' : 'CASH')),
+        wf_group: acc.wf_group || (acc.is_mortgage_loan ? 'Loans' : (acc.role.includes('ARCHIVED') ? 'Archived' : (acc.role.includes('CARD') ? 'Credit Cards' : 'Banking'))),
+        is_active: 1,
+        is_archived: acc.is_archived
+      };
+
+      if (field === 'wf_name') {
+        existing.wf_name = val.trim();
+      } else if (field === 'wf_account_type') {
+        existing.wf_account_type = val;
+        if (existing.role && existing.role.startsWith('MIGRATE_')) {
+          const isArch = existing.role.includes('ARCHIVED');
+          if (val === 'CREDIT_CARD') existing.role = isArch ? 'MIGRATE_CARD_ARCHIVED' : 'MIGRATE_CARD_ACTIVE';
+          else if (val === 'LOAN') existing.role = isArch ? 'MIGRATE_LOAN_ARCHIVED' : 'MIGRATE_LOAN_ACTIVE';
+          else existing.role = isArch ? 'MIGRATE_CASH_ARCHIVED' : 'MIGRATE_CASH_ACTIVE';
+        }
+      } else if (field === 'status') {
+        const isArch = (val === 'ARCHIVED');
+        existing.is_active = 1;
+        existing.is_archived = isArch ? 1 : 0;
+        if (existing.role && existing.role.startsWith('MIGRATE_')) {
+          const t = existing.wf_account_type;
+          if (t === 'CREDIT_CARD') existing.role = isArch ? 'MIGRATE_CARD_ARCHIVED' : 'MIGRATE_CARD_ACTIVE';
+          else if (t === 'LOAN') existing.role = isArch ? 'MIGRATE_LOAN_ARCHIVED' : 'MIGRATE_LOAN_ACTIVE';
+          else existing.role = isArch ? 'MIGRATE_CASH_ARCHIVED' : 'MIGRATE_CASH_ACTIVE';
+        }
+      } else if (field === 'wf_group') {
+        existing.wf_group = val.trim();
+      }
+
+      state.stagedAccountChanges.set(guid, existing);
+      const row = document.getElementById(`acc-row-${guid}`);
+      if (row) row.style.background = '#1e1b4b22';
+      updateStagedText();
+      updateCounters();
+      // Smooth inline editing: DO NOT call renderAccounts() so inputs don't lose focus!
+    }
+
+    // --- CATEGORY MAPPINGS TREE VIEW ---
+    function setFilter(filter) {
+      state.currentFilter = filter;
+      const pills = ['all', 'review', 'fallback', 'root', 'needs', 'wants', 'investment', 'savings', 'other', 'income', 'custom'];
+      pills.forEach(p => {
+        const el = document.getElementById(`pill-${p}`);
+        if (el) el.classList.toggle('active', filter.toLowerCase() === p);
+      });
+      renderMappings();
+    }
+
+    function handleSearch() {
+      state.searchQuery = document.getElementById('search-input').value.toLowerCase().trim();
+      renderMappings();
+    }
+
+    function sortMappings(col) {
+      if (state.mappingSort.col === col) {
+        state.mappingSort.asc = !state.mappingSort.asc;
+      } else {
+        state.mappingSort.col = col;
+        state.mappingSort.asc = (col === 'gnc_path' || col === 'category_name' || col === 'budget_group' || col === 'activity_type');
+      }
+      renderMappings();
+    }
+
+    function renderMappings() {
+      const tbody = document.getElementById('mappings-tbody');
+      const hideZero = document.getElementById('hide-zero-tx')?.checked;
+      const parentMap = new Map(state.parents.map(p => [p.id, p]));
+      const parentFilter = document.getElementById('mapping-filter-parent')?.value;
+
+      ['path', 'tx', 'vol', 'type', 'bg', 'parent', 'name', 'status'].forEach(id => {
+        const th = document.getElementById(`th-m-${id}`);
+        if (!th) return;
+        const icon = th.querySelector('.sort-icon');
+        const colMap = { path: 'gnc_path', tx: 'tx_count', vol: 'total_amount', type: 'activity_type', bg: 'budget_group', parent: 'parent_id', name: 'category_name', status: 'status' };
+        if (state.mappingSort.col === colMap[id]) {
+          th.classList.add('sorted');
+          icon.textContent = state.mappingSort.asc ? '▲' : '▼';
+        } else {
+          th.classList.remove('sorted');
+          icon.textContent = '↕';
+        }
+      });
+
+      let filtered = state.accounts.filter(acc => {
+        if (hideZero && acc.tx_count === 0) return false;
+        if (state.currentFilter === 'review' && ((acc.category_id && !acc.is_needs_review) || acc.tx_count === 0)) return false;
+        if (state.currentFilter === 'fallback' && (!acc.is_fallback || acc.tx_count === 0)) return false;
+        if (state.currentFilter === 'root' && (!acc.is_root || acc.tx_count === 0)) return false;
+        if (state.currentFilter === 'custom' && !acc.is_custom) return false;
+        if (['NEEDS', 'WANTS', 'INVESTMENT', 'SAVINGS', 'OTHER', 'INCOME'].includes(state.currentFilter)) {
+          if (acc.budget_group !== state.currentFilter) return false;
+        }
+
+        const staged = state.stagedChanges.get(acc.gnc_guid);
+        const currentParent = staged ? staged.parent_id : (acc.parent_id || acc.category_id);
+
+        if (parentFilter && currentParent !== parentFilter) return false;
+
+        if (state.searchQuery) {
+          const parentName = (parentMap.get(currentParent)?.name || '').toLowerCase();
+          const matchPath = acc.gnc_path.toLowerCase().includes(state.searchQuery);
+          const matchName = acc.category_name.toLowerCase().includes(state.searchQuery);
+          const matchBg = (acc.budget_group || '').toLowerCase().includes(state.searchQuery);
+          const matchType = (acc.activity_type || '').toLowerCase().includes(state.searchQuery);
+          const matchParent = parentName.includes(state.searchQuery);
+          if (!matchPath && !matchName && !matchBg && !matchParent && !matchType) return false;
+        }
+        return true;
+      });
+
+      // Update live counter in summary bar
+      const totalCount = state.accounts.length;
+      const zeroTxCount = state.accounts.filter(a => a.tx_count === 0).length;
+      const visibleEl = document.getElementById('mapping-visible-cnt');
+      const totalEl = document.getElementById('mapping-total-cnt');
+      const zeroNoteEl = document.getElementById('mapping-zero-note');
+      if (visibleEl) visibleEl.textContent = filtered.length;
+      if (totalEl) totalEl.textContent = totalCount;
+      const summaryEl = document.getElementById('mapping-summary-cnt');
+      if (summaryEl) summaryEl.textContent = totalCount;
+      if (zeroNoteEl) {
+        if (hideZero) {
+          zeroNoteEl.textContent = `(${zeroTxCount} zero-tx accounts hidden)`;
+        } else {
+          zeroNoteEl.textContent = `(all categories shown including ${zeroTxCount} zero-tx)`;
+        }
+      }
+
+      const { col, asc } = state.mappingSort;
+      filtered.sort((a, b) => {
+        let vA = a[col];
+        let vB = b[col];
+        if (col === 'parent_id') {
+          const pA = state.stagedChanges.get(a.gnc_guid)?.parent_id || a.parent_id || a.category_id;
+          const pB = state.stagedChanges.get(b.gnc_guid)?.parent_id || b.parent_id || b.category_id;
+          vA = parentMap.get(pA)?.name || pA || '';
+          vB = parentMap.get(pB)?.name || pB || '';
+        } else if (col === 'status') {
+          const isRevA = !a.category_id || a.is_needs_review;
+          const isRevB = !b.category_id || b.is_needs_review;
+          vA = a.is_custom ? 3 : (isRevA ? 1 : (a.is_fallback ? 2 : 0));
+          vB = b.is_custom ? 3 : (isRevB ? 1 : (b.is_fallback ? 2 : 0));
+        }
+        if (typeof vA === 'string') {
+          return asc ? (vA || '').localeCompare(vB || '') : (vB || '').localeCompare(vA || '');
+        }
+        return asc ? (vA - vB) : (vB - vA);
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">No matching accounts found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(acc => {
+        const staged = state.stagedChanges.get(acc.gnc_guid);
+        const currentParent = staged ? staged.parent_id : acc.parent_id;
+        const currentName = staged ? staged.subcat_name : acc.category_name;
+        const isModified = staged !== undefined;
+
+        const parentObj = parentMap.get(currentParent);
+        const activeBg = parentObj ? parentObj.budget_group : acc.budget_group;
+
+        let statusHtml = '';
+        if (isModified) {
+          statusHtml = `<span class="status-badge custom">Staged</span>`;
+        } else if (acc.is_custom) {
+          statusHtml = `<span class="status-badge custom">Custom</span>`;
+        } else if (!acc.category_id || acc.is_needs_review) {
+          statusHtml = `<span class="status-badge warning">⚠️ Needs Review</span>`;
+        } else if (acc.is_fallback && acc.tx_count > 0) {
+          statusHtml = `<span class="status-badge warning" title="Mapped to generic fallback category (Uncategorized Expense / Uncategorized Income)">⚠️ Fallback</span>`;
+        } else if (acc.is_root && acc.tx_count > 0) {
+          statusHtml = `<span class="status-badge warning" title="Mapped directly to a root category without subcategory">⚠️ Root Only</span>`;
+        } else {
+          statusHtml = `<span class="status-badge auto">Auto</span>`;
+        }
+
+        const parentOptions = state.parents.map(p => {
+          const selected = p.id === currentParent ? 'selected' : '';
+          return `<option value="${p.id}" ${selected}>${escapeHtml(p.name)} (${p.budget_group})</option>`;
+        }).join('');
+
+        const isHighlight = (!acc.category_id || acc.is_needs_review || acc.is_fallback || acc.is_root) && acc.tx_count > 0;
+        let rowStyle = '';
+        if (isModified) {
+          rowStyle = 'background: #1e1b4b22;';
+        } else if (isHighlight) {
+          rowStyle = 'background: rgba(245, 158, 11, 0.08);';
+        }
+
+        const pathParts = acc.gnc_path.split(':');
+        const leafName = pathParts.pop();
+        const prefix = pathParts.join(' › ');
+        const parentBranch = pathParts.join(':');
+
+        return `
+          <tr id="row-${acc.gnc_guid}" style="${rowStyle}">
+            <td>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  ${prefix ? `<span style="color: var(--text-muted); font-size: 0.8rem;">${escapeHtml(prefix)} › </span>` : ''}
+                  <strong style="color: var(--text);">${escapeHtml(leafName)}</strong>
+                </div>
+                ${parentBranch ? `
+                  <button class="btn-secondary" onclick="openSubtreeModal('${escapeJs(parentBranch)}')" style="padding: 0.15rem 0.4rem; font-size: 0.725rem; white-space: nowrap; flex-shrink: 0;" title="Apply category to all accounts under '${escapeHtml(parentBranch)}'">
+                    📁 Apply to Branch
+                  </button>
+                ` : ''}
+              </div>
+            </td>
+            <td style="text-align: center;"><span class="tab-badge">${acc.tx_count.toLocaleString()}</span></td>
+            <td style="text-align: right; font-family: monospace; font-size: 0.8rem; font-weight: 500;">
+              <span style="color: ${acc.total_amount > 0 ? '#e2e8f0' : 'var(--text-muted)'};">
+                ${acc.total_amount ? `$${acc.total_amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : '-'}
+              </span>
+            </td>
+            <td style="text-align: center;">
+              ${getActivityTypeBadge(acc.activity_type)}
+            </td>
+            <td id="bg-cell-${acc.gnc_guid}" style="text-align: center;">
+              ${getBudgetGroupBadge(activeBg)}
+            </td>
+            <td>
+              <select class="select-parent" onchange="onMappingChange('${acc.gnc_guid}', 'parent', this.value)">
+                ${parentOptions}
+              </select>
+            </td>
+            <td>
+              <input type="text" class="subcat-input" value="${escapeHtml(currentName)}" onchange="onMappingChange('${acc.gnc_guid}', 'name', this.value)">
+            </td>
+            <td id="status-cell-${acc.gnc_guid}" style="text-align: center;">${statusHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function onMappingChange(guid, field, val) {
+      const acc = state.accounts.find(a => a.gnc_guid === guid);
+      if (!acc) return;
+
+      const existing = state.stagedChanges.get(guid) || { parent_id: acc.parent_id, subcat_name: acc.category_name };
+      if (field === 'parent') {
+        existing.parent_id = val;
+        const parentObj = state.parents.find(p => p.id === val);
+        const cell = document.getElementById(`bg-cell-${guid}`);
+        if (cell && parentObj) {
+          cell.innerHTML = getBudgetGroupBadge(parentObj.budget_group);
+        }
+      }
+      if (field === 'name') existing.subcat_name = val.trim();
+
+      state.stagedChanges.set(guid, existing);
+
+      // Live row staging feedback without re-rendering entire table
+      const row = document.getElementById(`row-${guid}`);
+      if (row) {
+        row.style.background = '#1e1b4b22';
+      }
+      const statusCell = document.getElementById(`status-cell-${guid}`);
+      if (statusCell) {
+        statusCell.innerHTML = `<span class="status-badge custom">Staged</span>`;
+      }
+
+      updateStagedText();
+    }
+
+    function updateStagedText() {
+      const catCount = state.stagedChanges.size;
+      const accCount = state.stagedAccountChanges.size;
+      const totalCount = catCount + accCount;
+      const el = document.getElementById('staged-count-text');
+      const actionBar = document.querySelector('.action-bar');
+      const btnSaveBottom = document.getElementById('btn-save-bottom');
+
+      if (totalCount === 0) {
+        if (el) {
+          el.textContent = `0 changes staged`;
+          el.style.color = 'var(--text-muted)';
+        }
+        if (actionBar) actionBar.classList.remove('has-staged');
+        if (btnSaveBottom) btnSaveBottom.classList.remove('btn-save-pulsing');
+      } else {
+        const parts = [];
+        if (catCount > 0) parts.push(`${catCount} category`);
+        if (accCount > 0) parts.push(`${accCount} account`);
+        if (el) {
+          el.textContent = `${totalCount} change${totalCount === 1 ? '' : 's'} staged (${parts.join(', ')})`;
+          el.style.color = 'var(--warning-text)';
+        }
+        if (actionBar) actionBar.classList.add('has-staged');
+        if (btnSaveBottom) btnSaveBottom.classList.add('btn-save-pulsing');
+      }
+
+      const topBadge = document.getElementById('top-acc-staged-badge');
+      if (topBadge) {
+        if (accCount > 0) {
+          topBadge.textContent = accCount;
+          topBadge.style.display = 'inline-block';
+        } else {
+          topBadge.style.display = 'none';
+        }
+      }
+      const topCatBadge = document.getElementById('top-cat-staged-badge');
+      if (topCatBadge) {
+        if (catCount > 0) {
+          topCatBadge.textContent = catCount;
+          topCatBadge.style.display = 'inline-block';
+        } else {
+          topCatBadge.style.display = 'none';
+        }
+      }
+    }
+
+    async function saveMappings(isSilent = false) {
+      if (state.stagedChanges.size === 0 && state.stagedAccountChanges.size === 0) {
+        if (!isSilent) showToast('No changes to save.');
+        return true;
+      }
+
+      const results = [];
+
+      // 1. Save category mapping updates
+      if (state.stagedChanges.size > 0) {
+        const updates = [];
+        for (const [guid, change] of state.stagedChanges.entries()) {
+          updates.push({
+            gnc_guid: guid,
+            parent_id: change.parent_id,
+            subcat_name: change.subcat_name
+          });
+        }
+
+        try {
+          const res = await fetch('/api/mapping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ updates })
+          });
+          const data = await res.json();
+          if (data.status === 'ok') {
+            state.stagedChanges.clear();
+            results.push(`${data.updated} category update(s)`);
+          } else {
+            alert('Error saving category mappings: ' + data.error);
+            return false;
+          }
+        } catch (err) {
+          alert('Failed to save category mappings: ' + err);
+          return false;
+        }
+      }
+
+      // 2. Save balance sheet account updates
+      if (state.stagedAccountChanges.size > 0) {
+        const updates = Array.from(state.stagedAccountChanges.values());
+
+        try {
+          const res = await fetch('/api/accounts_mapping', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ updates })
+          });
+          const data = await res.json();
+          if (data.status === 'ok') {
+            state.stagedAccountChanges.clear();
+            results.push(`${data.updated} account update(s)`);
+          } else {
+            alert('Error saving account mappings: ' + data.error);
+            return false;
+          }
+        } catch (err) {
+          alert('Failed to save account mappings: ' + err);
+          return false;
+        }
+      }
+
+      updateStagedText();
+      if (!isSilent && results.length > 0) {
+        showToast(`Saved ${results.join(' and ')}.`);
+      }
+      await loadState();
+      await fetchTransactions();
+      return true;
+    }
+
+    // --- DATABASE BACKUPS ---
+    function renderBackups() {
+      const tbody = document.getElementById('backups-tbody');
+      if (state.backups.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">No backups found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = state.backups.map(b => `
+        <tr>
+          <td><code class="mono-cell" style="color: #cbd5e1;">${escapeHtml(b.filename)}</code></td>
+          <td>${b.created_at}</td>
+          <td><strong>${b.size_mb} MB</strong></td>
+          <td style="text-align: right;">
+            <button class="btn-danger" onclick="deleteSingleBackup('${escapeJs(b.filename)}')">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function pruneBackups() {
+      if (!confirm('Prune database backups down to the latest 3 files to save disk space?')) return;
+      try {
+        const res = await fetch('/api/backups/prune', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keep_latest: 3 })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Pruned ${data.deleted.length} backups.`);
+          await loadState();
+        } else {
+          alert('Error pruning backups: ' + data.error);
+        }
+      } catch (err) {
+        alert('Prune failed: ' + err);
+      }
+    }
+
+    async function deleteSingleBackup(filename) {
+      if (!confirm(`Delete backup "${filename}"?`)) return;
+      try {
+        const res = await fetch(`/api/backups/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Deleted backup: ${filename}`);
+          await loadState();
+        } else {
+          alert('Delete failed: ' + data.error);
+        }
+      } catch (err) {
+        alert('Delete failed: ' + err);
+      }
+    }
+
+    // --- FILE PICKER & ENVIRONMENT PATHS ---
+    async function openFileLocation(target) {
+      showToast(`Opening folder location for ${target}...`);
+      try {
+        const res = await fetch('/api/paths/open_location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Opened folder location: ${data.opened}`);
+        } else {
+          alert('Could not open folder: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to open folder location: ' + err);
+      }
+    }
+
+    async function browseFile(target) {
+      showToast(`Opening file selector for ${target}...`);
+      try {
+        const res = await fetch('/api/paths/pick', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target })
+        });
+        const data = await res.json();
+        if (data.status === 'ok' && data.path) {
+          await updateActivePath(target, data.path);
+        } else if (data.status === 'error') {
+          // Fallback to manual text prompt if native dialog fails
+          const currentPath = state.paths?.[target] || '';
+          const manualPath = prompt(`Enter path for ${target}:`, currentPath);
+          if (manualPath && manualPath.trim()) {
+            await updateActivePath(target, manualPath.trim());
+          }
+        }
+      } catch (err) {
+        // Fallback to text prompt
+        const currentPath = state.paths?.[target] || '';
+        const manualPath = prompt(`Enter path for ${target}:`, currentPath);
+        if (manualPath && manualPath.trim()) {
+          await updateActivePath(target, manualPath.trim());
+        }
+      }
+    }
+
+    async function updateActivePath(target, newPath) {
+      showToast(`Loading ${newPath}...`);
+      try {
+        const payload = {};
+        payload[target] = newPath;
+        const res = await fetch('/api/paths/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Successfully updated and loaded ${target}!`);
+          await loadState();
+          await fetchTransactions();
+        } else {
+          alert('Failed to update path: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to update path: ' + err);
+      }
+    }
+
+    // --- MAPPING BACKUPS & PORTABILITY ---
+    let _mappingBackupsCache = [];
+
+    async function loadMappingBackups() {
+      try {
+        const res = await fetch('/api/backups/mappings');
+        const data = await res.json();
+        _mappingBackupsCache = data.backups || [];
+        renderMappingBackups(_mappingBackupsCache);
+        populateSnapshotDropdowns(_mappingBackupsCache);
+      } catch (err) {
+        console.error('Failed to load mapping backups:', err);
+      }
+    }
+
+    function populateSnapshotDropdowns(backups) {
+      const selects = [
+        document.getElementById('quick-mapping-snapshot-select'),
+        document.getElementById('mapping-tab-snapshot-select'),
+      ];
+
+      const optsHtml = (!backups || backups.length === 0)
+        ? '<option value="">(No saved snapshots found)</option>'
+        : '<option value="">-- Choose a Snapshot --</option>' + backups.map(b =>
+            `<option value="${escapeHtml(b.filename)}">${escapeHtml(b.filename)} (${b.created_at})</option>`
+          ).join('');
+
+      selects.forEach(sel => {
+        if (sel) sel.innerHTML = optsHtml;
+      });
+    }
+
+    async function restoreSelectedSnapshot(selectElementId) {
+      const sel = document.getElementById(selectElementId);
+      if (!sel || !sel.value) {
+        alert('Please select a mapping snapshot file to restore from the dropdown.');
+        return;
+      }
+      const filename = sel.value;
+      if (!confirm(`Are you sure you want to restore snapshot "${filename}"?\n\nA safety backup of your current mapping.json will be saved automatically before replacing.`)) {
+        return;
+      }
+
+      showToast(`Restoring snapshot ${filename}...`);
+      try {
+        const res = await fetch('/api/backups/mappings/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Snapshot "${filename}" restored successfully!`);
+          await loadState();
+          await loadMappingBackups();
+          await fetchTransactions();
+        } else {
+          alert('Failed to restore snapshot: ' + data.error);
+        }
+      } catch (err) {
+        alert('Restore request failed: ' + err);
+      }
+    }
+
+    async function promptCreateSnapshot() {
+      const label = prompt('Enter an optional label for this mapping snapshot (e.g. before_refactor, post_cleanup):', '');
+      if (label === null) return; // user cancelled
+
+      showToast('Saving mapping snapshot...');
+      try {
+        const res = await fetch('/api/backups/mappings/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label: label.trim() })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Snapshot saved: ${data.filename}`);
+          await loadMappingBackups();
+        } else {
+          alert('Failed to create snapshot: ' + data.error);
+        }
+      } catch (err) {
+        alert('Snapshot request failed: ' + err);
+      }
+    }
+
+    function renderMappingBackups(backups) {
+      const tbody = document.getElementById('mapping-backups-tbody');
+      if (!tbody) return;
+      if (!backups || backups.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No mapping backups saved yet.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = backups.map(b => `
+        <tr>
+          <td><code class="mono-cell" style="color: #38bdf8;">${escapeHtml(b.filename)}</code></td>
+          <td>${b.created_at}</td>
+          <td><strong>${b.size_mb > 0.01 ? b.size_mb + ' MB' : (Math.round(b.size_bytes / 1024) + ' KB')}</strong></td>
+          <td style="text-align: right; display: flex; justify-content: flex-end; gap: 0.4rem;">
+            <button class="btn-secondary" onclick="restoreSingleMappingBackup('${escapeJs(b.filename)}')">↺ Restore</button>
+            <button class="btn-danger" onclick="deleteSingleMappingBackup('${escapeJs(b.filename)}')">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function restoreSingleMappingBackup(filename) {
+      if (!confirm(`Restore mapping snapshot "${filename}"?\n\nYour current mapping.json will be safely backed up before restoring.`)) return;
+      showToast(`Restoring snapshot ${filename}...`);
+      try {
+        const res = await fetch('/api/backups/mappings/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Snapshot "${filename}" restored successfully!`);
+          await loadState();
+          await loadMappingBackups();
+          await fetchTransactions();
+        } else {
+          alert('Failed to restore snapshot: ' + data.error);
+        }
+      } catch (err) {
+        alert('Restore request failed: ' + err);
+      }
+    }
+
+    function exportMappingFile() {
+      window.location.href = '/api/mapping/export';
+    }
+
+    function triggerImportMapping() {
+      document.getElementById('mapping-import-input').click();
+    }
+
+    async function handleMappingFileChosen(file) {
+      if (!file) return;
+      if (!confirm(`Import mapping configuration from "${file.name}"? Current mapping will be backed up automatically.`)) {
+        document.getElementById('mapping-import-input').value = '';
+        return;
+      }
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        const res = await fetch('/api/mapping/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mapping: json })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('Successfully imported mapping configuration!');
+          await loadState();
+          await loadMappingBackups();
+        } else {
+          alert('Import failed: ' + data.error);
+        }
+      } catch (err) {
+        alert('Failed to read or parse mapping file: ' + err);
+      } finally {
+        document.getElementById('mapping-import-input').value = '';
+      }
+    }
+
+    async function pruneMappingBackups() {
+      if (!confirm('Prune mapping backups down to the latest 20 snapshots?')) return;
+      try {
+        const res = await fetch('/api/backups/mappings/prune', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ keep_latest: 20 })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Pruned ${data.deleted.length} mapping backups.`);
+          await loadMappingBackups();
+        } else {
+          alert('Error pruning mapping backups: ' + data.error);
+        }
+      } catch (err) {
+        alert('Prune failed: ' + err);
+      }
+    }
+
+    async function deleteSingleMappingBackup(filename) {
+      if (!confirm(`Delete mapping backup "${filename}"?`)) return;
+      try {
+        const res = await fetch(`/api/backups/mappings/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`Deleted mapping backup: ${filename}`);
+          await loadMappingBackups();
+        } else {
+          alert('Delete failed: ' + data.error);
+        }
+      } catch (err) {
+        alert('Delete failed: ' + err);
+      }
+    }
+
+    // --- ONBOARDING WIZARD ---
+    async function checkOnboardingStatus() {
+      try {
+        const res = await fetch('/api/onboarding/status');
+        const data = await res.json();
+        if (data.is_first_launch) {
+          document.getElementById('onboarding-modal').style.display = 'flex';
+        }
+      } catch (err) {
+        console.error('Failed to check onboarding status:', err);
+      }
+    }
+
+    function closeOnboardingModal() {
+      document.getElementById('onboarding-modal').style.display = 'none';
+    }
+
+    async function submitOnboardingInitialize() {
+      const currency = document.getElementById('onboarding-currency').value;
+      try {
+        const res = await fetch('/api/onboarding/initialize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currency })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          closeOnboardingModal();
+          showToast('Configured default categories and accounts!');
+          await loadState();
+        } else {
+          alert('Onboarding initialization failed: ' + data.error);
+        }
+      } catch (err) {
+        alert('Initialization failed: ' + err);
+      }
+    }
+
+    // --- MIGRATION EXECUTION ---
+    function confirmAndMigrate() {
+      document.getElementById('migrate-modal').style.display = 'flex';
+      document.getElementById('modal-title').textContent = "Confirm Migration";
+      document.getElementById('modal-desc').textContent =
+        "Are you sure you want to run the migration now? All prior GnuCash records in Wealthfolio will be replaced with your currently mapped data.";
+      document.getElementById('migrate-log-box').style.display = 'none';
+      document.getElementById('modal-actions').innerHTML = `
+        <button class="btn-secondary" onclick="closeMigrateModal()">Cancel</button>
+        <button class="btn-accent" onclick="runMigrationNow()">Execute Migration</button>
+      `;
+    }
+
+    async function runMigrationNow() {
+      await saveMappings(true);
+
+      const logBox = document.getElementById('migrate-log-box');
+      logBox.style.display = 'block';
+      logBox.textContent = "Starting SQLite migration & reconciliation verification...\n";
+
+      document.getElementById('modal-title').textContent = "Migration in Progress...";
+      document.getElementById('modal-actions').innerHTML = `
+        <span style="color: var(--text-muted); font-size: 0.85rem;">Processing... please wait...</span>
+      `;
+
+      try {
+        const res = await fetch('/api/migrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ install: true, launch: false })
+        });
+        const data = await res.json();
+
+        if (data.status === 'ok') {
+          const uncatCount = data.uncategorized_withdrawals || 0;
+          const uncatStatus = uncatCount === 0
+            ? `[OK] Uncategorized Spending Activities: 0 (All spending categorized)`
+            : `[WARN] Uncategorized Spending Activities: ${uncatCount} (will appear with + Categorize)`;
+
+          logBox.textContent += `\n[OK] Accounts created: ${data.accounts_created}\n` +
+            `[OK] Categories created: ${data.categories_created}\n` +
+            `[OK] Activities migrated: ${data.activities_created.toLocaleString()}\n` +
+            `[OK] Balance Reconciliation Max Difference: $${data.max_diff.toFixed(2)}\n` +
+            `[OK] Integrity & Foreign Keys: PASSED\n` +
+            `${uncatStatus}\n` +
+            `[OK] Staged database successfully deployed to live Wealthfolio app.db!\n`;
+
+          document.getElementById('modal-title').textContent = uncatCount === 0 ? "Migration Successful!" : "Migration Completed with Warnings";
+          let actionButtons = `<button class="btn-secondary" onclick="closeMigrateModal()">Close</button>`;
+          if (uncatCount > 0) {
+            actionButtons += `<button class="btn-secondary" onclick="closeMigrateModal(); switchTab('transactions'); setTxFilter('UNCAT');" style="color: var(--warning-text); border-color: var(--warning);">⚠️ Review ${uncatCount} Uncategorized</button>`;
+          }
+          actionButtons += `<button class="btn-accent" onclick="launchWealthfolio()">Open Wealthfolio</button>`;
+          document.getElementById('modal-actions').innerHTML = actionButtons;
+          await loadState();
+        } else {
+          logBox.textContent += `\n[ERROR] Migration failed:\n${data.error}\n`;
+          document.getElementById('modal-title').textContent = "Migration Failed";
+          document.getElementById('modal-actions').innerHTML = `
+            <button class="btn-secondary" onclick="closeMigrateModal()">Close</button>
+          `;
+        }
+      } catch (err) {
+        logBox.textContent += `\n[ERROR] Request failed: ${err}\n`;
+        document.getElementById('modal-actions').innerHTML = `
+          <button class="btn-secondary" onclick="closeMigrateModal()">Close</button>
+        `;
+      }
+    }
+
+    async function launchWealthfolio() {
+      try {
+        await fetch('/api/launch', { method: 'POST' });
+        closeMigrateModal();
+      } catch (err) {
+        alert('Could not launch Wealthfolio: ' + err);
+      }
+    }
+
+    function closeMigrateModal() {
+      document.getElementById('migrate-modal').style.display = 'none';
+    }
+
+    // --- WEALTHFOLIO MIGRATION PREVIEW & SIMULATION ---
+    let _previewCache = null;
+
+    async function openWealthfolioPreviewModal() {
+      if (state.stagedChanges.size > 0 || state.stagedAccountChanges.size > 0) {
+        showToast('Saving staged changes before simulation...', 'info');
+        await saveMappings(true);
+      }
+
+      const modal = document.getElementById('wealthfolio-preview-modal');
+      const box = document.getElementById('preview-content-box');
+      modal.style.display = 'flex';
+      box.innerHTML = `
+        <div style="text-align: center; padding: 3.5rem 1rem; color: var(--text-muted);">
+          <div style="font-size: 2.2rem; margin-bottom: 0.75rem;">🔍</div>
+          <div style="font-size: 1.15rem; color: #f8fafc; font-weight: 600;">Generating Live Wealthfolio Migration Simulation...</div>
+          <div style="font-size: 0.85rem; margin-top: 0.4rem; color: #94a3b8;">
+            Simulating account classifications, category rollups, spending assessments, and checking for direct assignments...
+          </div>
+        </div>
+      `;
+
+      try {
+        const res = await fetch('/api/wealthfolio_preview');
+        const data = await res.json();
+        if (data.status === 'ok') {
+          renderWealthfolioPreview(data);
+        } else {
+          box.innerHTML = `<div style="padding: 2.5rem; color: var(--danger); text-align: center; font-size: 0.95rem;">Failed to generate simulation: ${escapeHtml(data.error || 'Unknown error')}</div>`;
+        }
+      } catch (err) {
+        box.innerHTML = `<div style="padding: 2.5rem; color: var(--danger); text-align: center; font-size: 0.95rem;">Error requesting preview: ${err}</div>`;
+      }
+    }
+
+    function closeWealthfolioPreviewModal() {
+      document.getElementById('wealthfolio-preview-modal').style.display = 'none';
+    }
+
+    function closePreviewAndFilterDirect() {
+      closeWealthfolioPreviewModal();
+      switchTab('transactions');
+      setTxFilter('DIRECT');
+    }
+
+    function renderWealthfolioPreview(data) {
+      _previewCache = data;
+      const box = document.getElementById('preview-content-box');
+      const { summary, categories, accounts } = data;
+
+      // 1. Category Hierarchy Health Audit Banner
+      let auditBannerHtml = '';
+      if (summary.direct_count === 0) {
+        auditBannerHtml = `
+          <div style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.85rem;">
+              <span style="font-size: 1.6rem;">✅</span>
+              <div>
+                <strong style="color: #34d399; font-size: 0.95rem;">Category Hierarchy Audit: 100% Validated</strong>
+                <div style="color: #cbd5e1; font-size: 0.825rem; margin-top: 0.15rem;">
+                  <strong>0 direct category assignments.</strong> All ${summary.total_transactions.toLocaleString()} transactions roll cleanly into proper Wealthfolio subcategories. No synthetic "Direct" slice will appear on your Wealthfolio spending charts.
+                </div>
+              </div>
+            </div>
+            <span class="status-badge auto" style="font-size: 0.8rem; padding: 0.25rem 0.65rem;">Sync Ready</span>
+          </div>
+        `;
+      } else {
+        auditBannerHtml = `
+          <div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 0.85rem;">
+              <span style="font-size: 1.6rem;">⚠️</span>
+              <div>
+                <strong style="color: #fbbf24; font-size: 0.95rem;">Direct Category Assignments Detected: ${summary.direct_count} transactions ($${summary.direct_amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})})</strong>
+                <div style="color: #cbd5e1; font-size: 0.825rem; margin-top: 0.15rem;">
+                  In Wealthfolio, these will appear grouped under <em>"Direct &bull; Assigned to the category itself, not to a subcategory."</em>
+                  The migrator will automatically resolve them into designated subcategories, or you can assign them to specific subcategories now.
+                </div>
+              </div>
+            </div>
+            <button class="btn-primary" onclick="closePreviewAndFilterDirect()" style="padding: 0.4rem 0.85rem; font-size: 0.8rem; background: #d97706; border-color: #f59e0b; white-space: nowrap;">
+              ⚠️ Inspect in Transactions (${summary.direct_count})
+            </button>
+          </div>
+        `;
+      }
+
+      // 2. Spending Assessment Cards
+      const bgs = ['NEEDS', 'WANTS', 'INVESTMENT', 'SAVINGS', 'GIVING', 'PERSONAL', 'OTHER', 'INCOME'];
+      const bgCardsHtml = bgs.map(bg => {
+        const item = summary.budget_groups[bg] || { amount: 0, count: 0 };
+        const key = bg.toLowerCase();
+        return `
+          <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.75rem 0.9rem; flex: 1; min-width: 125px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <span class="bg-badge ${key}" style="font-size: 0.675rem; padding: 0.15rem 0.4rem;">${bg}</span>
+              <span style="font-size: 0.725rem; color: var(--text-muted);">${item.count.toLocaleString()} txs</span>
+            </div>
+            <div style="font-size: 1rem; font-weight: 700; color: #f8fafc;">
+              $${item.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // 3. Accounts Sync Table
+      const accountsTableHtml = `
+        <div class="table-container" style="max-height: 240px; overflow-y: auto;">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 35%;">Wealthfolio Account Name</th>
+                <th style="width: 15%;">Account Type</th>
+                <th style="width: 20%;">Group</th>
+                <th style="width: 15%; text-align: center;">Status</th>
+                <th style="width: 15%; text-align: right;">Transactions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${accounts.map(a => `
+                <tr>
+                  <td><strong>${escapeHtml(a.name)}</strong></td>
+                  <td><code style="font-size: 0.8rem; color: #94a3b8;">${escapeHtml(a.type)}</code></td>
+                  <td>${escapeHtml(a.group || '-')}</td>
+                  <td style="text-align: center;">
+                    <span class="status-badge ${a.status === 'ACTIVE' ? 'auto' : 'custom'}" style="font-size: 0.7rem;">
+                      ${escapeHtml(a.status)}
+                    </span>
+                  </td>
+                  <td style="text-align: right;">${a.tx_count.toLocaleString()} txs</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      // Assemble full modal content
+      box.innerHTML = `
+        ${auditBannerHtml}
+
+        <div style="margin-bottom: 1.25rem;">
+          <div style="font-size: 0.825rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">
+            📊 Spending Assessment Rollups (${summary.total_transactions.toLocaleString()} Transactions &bull; Spending: $${summary.spending_total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} &bull; Income: $${summary.income_total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})})
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            ${bgCardsHtml}
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="font-size: 0.825rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">
+              📁 Category Rollup Tree (${categories.length} Categories)
+            </div>
+            <input type="text" id="preview-search-input" placeholder="Search category or subcategory..." oninput="onPreviewSearchInput(this.value)" style="padding: 0.3rem 0.65rem; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text); width: 240px;">
+          </div>
+          <div id="preview-categories-tree-container">
+            ${renderCategoriesTreeHtml(categories, '')}
+          </div>
+        </div>
+
+        <div style="margin-bottom: 0.5rem;">
+          <div style="font-size: 0.825rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">
+            🏦 Synchronized Accounts (${summary.accounts_imported} Total &bull; ${summary.accounts_active} Active, ${summary.accounts_archived} Archived)
+          </div>
+          ${accountsTableHtml}
+        </div>
+      `;
+    }
+
+    function renderCategoriesTreeHtml(categories, query) {
+      const q = (query || '').toLowerCase().trim();
+      const filtered = categories.filter(cat => {
+        if (!q) return true;
+        if (cat.name.toLowerCase().includes(q)) return true;
+        if (cat.budget_group.toLowerCase().includes(q)) return true;
+        return cat.subcategories.some(s => s.name.toLowerCase().includes(q));
+      });
+
+      if (filtered.length === 0) {
+        return `<div style="text-align: center; padding: 1.5rem; color: var(--text-muted); font-size: 0.85rem;">No categories match "${escapeHtml(q)}".</div>`;
+      }
+
+      return filtered.map(cat => {
+        const hasDirect = cat.direct_count > 0;
+        const subcats = cat.subcategories.filter(s => !q || s.name.toLowerCase().includes(q) || cat.name.toLowerCase().includes(q));
+        return `
+          <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; margin-bottom: 0.65rem; overflow: hidden;">
+            <div style="padding: 0.65rem 0.85rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--card-border);">
+              <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: ${cat.color || '#6366f1'};"></span>
+                <strong style="font-size: 0.95rem; color: #f8fafc;">${escapeHtml(cat.name)}</strong>
+                ${getBudgetGroupBadge(cat.budget_group)}
+                <span style="font-size: 0.75rem; color: var(--text-muted);">(${cat.subcategories.length} subcategories)</span>
+                ${hasDirect ? `<span class="status-badge warning" style="font-size: 0.7rem;">⚠️ ${cat.direct_count} direct ($${cat.direct_amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})})</span>` : ''}
+              </div>
+              <div style="display: flex; align-items: center; gap: 1rem;">
+                <span style="font-size: 0.825rem; color: var(--text-muted);">${cat.tx_count.toLocaleString()} txs</span>
+                <strong style="font-size: 0.95rem; color: #f8fafc;">$${cat.total_amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+              </div>
+            </div>
+            <div style="padding: 0.5rem 0.85rem;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.4rem;">
+                ${subcats.map(s => `
+                  <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0.6rem; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); border-radius: 4px; font-size: 0.825rem;">
+                    <span style="color: #cbd5e1;">📁 ${escapeHtml(s.name)}</span>
+                    <div style="text-align: right;">
+                      <span style="font-weight: 600; color: #f1f5f9;">$${s.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                      <span style="color: var(--text-muted); font-size: 0.725rem; margin-left: 0.35rem;">(${s.tx_count})</span>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function onPreviewSearchInput(q) {
+      if (!_previewCache) return;
+      const container = document.getElementById('preview-categories-tree-container');
+      if (container) {
+        container.innerHTML = renderCategoriesTreeHtml(_previewCache.categories, q);
+      }
+    }
+
+    function getBudgetGroupBadge(bg) {
+      if (!bg) bg = 'OTHER';
+      const key = bg.toLowerCase();
+      return `<span class="bg-badge ${key}">${escapeHtml(bg)}</span>`;
+    }
+
+    function getActivityTypeBadge(type) {
+      if (!type) type = 'WITHDRAWAL';
+      const key = type.toLowerCase();
+      const labels = {
+        'withdrawal': 'Withdrawal',
+        'deposit': 'Deposit',
+        'transfer_out': 'Transfer Out',
+        'transfer_in': 'Transfer In',
+        'fee': 'Fee',
+        'credit': 'Credit',
+        'interest': 'Interest'
+      };
+      const label = labels[key] || type;
+      return `<span class="act-badge ${key}">${escapeHtml(label)}</span>`;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escapeJs(str) {
+      if (!str) return '';
+      return String(str).replace(/'/g, "\\'");
+    }
+
+    // Global Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      // Escape: Close any open modal
+      if (e.key === 'Escape') {
+        const openModal = document.querySelector('.modal-backdrop[style*="display: flex"], .modal-backdrop[style*="display: block"]');
+        if (openModal) {
+          openModal.style.display = 'none';
+          e.preventDefault();
+          return;
+        }
+      }
+
+      // Ctrl+S or Cmd+S: Save Mappings
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveMappings(false);
+        return;
+      }
+
+      // /: Focus active search bar if not already in an input/textarea
+      if (e.key === '/' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        e.preventDefault();
+        let targetSearch = null;
+        if (state.activeTab === 'accounts') targetSearch = document.getElementById('account-search-input');
+        else if (state.activeTab === 'mappings') targetSearch = document.getElementById('search-input');
+        else if (state.activeTab === 'transactions') targetSearch = document.getElementById('tx-search-input');
+        if (targetSearch) targetSearch.focus();
+      }
+    });
+
+    // Unsaved Changes Guard
+    window.addEventListener('beforeunload', (e) => {
+      if (state.stagedChanges.size > 0 || state.stagedAccountChanges.size > 0) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved mapping changes that will be lost.';
+        return e.returnValue;
+      }
+    });
+
+    // Initialize on load
+    loadState();
+    loadRules();
+    loadMappingBackups();
+    checkOnboardingStatus();
+  </script>
+</body>
+</html>

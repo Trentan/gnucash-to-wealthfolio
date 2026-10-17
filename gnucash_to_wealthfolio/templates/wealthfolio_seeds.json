@@ -1,0 +1,28 @@
+{
+  "spending_roots": [
+    {"id": "cat_bills", "name": "Bills & Utilities", "color": "#3B82F6", "budget_group": "needs"},
+    {"id": "cat_education", "name": "Education", "color": "#8B5CF6", "budget_group": "needs"},
+    {"id": "cat_entertainment", "name": "Entertainment", "color": "#EC4899", "budget_group": "wants"},
+    {"id": "cat_fees", "name": "Fees & Charges", "color": "#6B7280", "budget_group": "needs"},
+    {"id": "cat_food", "name": "Food & Dining", "color": "#F97316", "budget_group": "wants"},
+    {"id": "cat_gifts", "name": "Gifts & Donations", "color": "#F43F5E", "budget_group": "giving"},
+    {"id": "cat_groceries", "name": "Groceries", "color": "#22C55E", "budget_group": "needs"},
+    {"id": "cat_health", "name": "Health & Fitness", "color": "#14B8A6", "budget_group": "needs"},
+    {"id": "cat_housing", "name": "Housing", "color": "#EAB308", "budget_group": "needs"},
+    {"id": "cat_other_expense", "name": "Other Expenses", "color": "#6B7280", "budget_group": "other"},
+    {"id": "cat_personal", "name": "Personal Care", "color": "#D946EF", "budget_group": "personal"},
+    {"id": "cat_shopping", "name": "Shopping", "color": "#A855F7", "budget_group": "wants"},
+    {"id": "cat_transport", "name": "Transportation", "color": "#0EA5E9", "budget_group": "needs"},
+    {"id": "cat_travel", "name": "Travel", "color": "#06B6D4", "budget_group": "wants"},
+    {"id": "cat_investment_property", "name": "Investments", "color": "#6366F1", "budget_group": "investment"},
+    {"id": "cat_savings", "name": "Savings", "color": "#6B8E54", "budget_group": "savings"},
+    {"id": "cat_family_pets", "name": "Children, Family & Pets", "color": "#EC4899", "budget_group": "needs"}
+  ],
+  "income_roots": [
+    {"id": "cat_income_employment", "name": "Employment Income", "color": "#22C55E", "budget_group": "income"},
+    {"id": "cat_income_investment", "name": "Investment Income", "color": "#10B981", "budget_group": "income"},
+    {"id": "cat_income_selfemploy", "name": "Self-Employment", "color": "#14B8A6", "budget_group": "income"},
+    {"id": "cat_income_government", "name": "Government & Support", "color": "#3B82F6", "budget_group": "income"},
+    {"id": "cat_income_other", "name": "Other Income", "color": "#84CC16", "budget_group": "income"}
+  ]
+}

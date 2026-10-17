@@ -1,0 +1,38 @@
+# GnuCash data files and backups
+*.gnucash
+*.gnucash.*
+*.LCK
+*.log
+
+# Wealthfolio databases, backups, and generated data
+backups/
+output/
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# User configuration (keep examples tracked, ignore personal mappings)
+config/mapping.json
+!config/mapping.example.json
+config/mapping.*.json
+
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+env/
+
+# OS and IDE configuration
+.superpowers/
+docs/superpowers/
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
