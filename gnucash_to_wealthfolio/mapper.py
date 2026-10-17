@@ -37,6 +37,9 @@ class AccountMapEntry:
     is_archived: int = 0
     tx_count: int = 0
     is_custom: bool = False
+    linked_wf_account_id: str | None = None
+    linked_wf_name: str | None = None
+    suppress_asset_creation: bool = False
 
 
 @dataclass
@@ -698,6 +701,8 @@ def build_mapping_config(
         if guid in existing_accounts and (
             getattr(existing_accounts[guid], "is_custom", False)
             or existing_accounts[guid].wf_account_id is not None
+            or existing_accounts[guid].linked_wf_account_id is not None
+            or existing_accounts[guid].role == AccountRole.LINKED_INVESTMENT_ACCOUNT
         ):
             # Tier 3: Preserve user overrides and existing resolved mapping
             prev_acc = existing_accounts[guid]
