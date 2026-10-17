@@ -21,6 +21,7 @@ class MigrationStats:
     rules_created: int
     alt_assets_created: int = 0
     alt_quotes_created: int = 0
+    matched_transfers_count: int = 0
 
 
 def _now_iso() -> str:
@@ -33,6 +34,30 @@ def _format_notes(trn: GncTransaction, split: GncSplit) -> str:
     if desc and memo and memo.lower() not in desc.lower():
         return f"{desc} — {memo}"
     return desc or memo or "GnuCash Transaction"
+
+
+def _find_matching_wf_activity(
+    candidate_date: str,
+    amount: Decimal,
+    candidate_activities: list[dict],
+    window_days: int = 3,
+) -> str | None:
+    """Find an existing unclaimed Wealthfolio activity matching date window and amount."""
+    d_candidate_str = candidate_date.split("T")[0]
+    d_candidate = datetime.strptime(d_candidate_str, "%Y-%m-%d").date()
+
+    for act in candidate_activities:
+        if act.get("claimed"):
+            continue
+        act_date_str = str(act["date"]).split("T")[0]
+        d_act = datetime.strptime(act_date_str, "%Y-%m-%d").date()
+        if (
+            abs((d_candidate - d_act).days) <= window_days
+            and abs(Decimal(str(amount)) - Decimal(str(act["amount"]))) < Decimal("0.001")
+        ):
+            act["claimed"] = True
+            return str(act["id"])
+    return None
 
 
 def _normalize_split_amounts(
@@ -747,6 +772,40 @@ def run_migration(
                     )
             return bridge_id
 
+        # Query pre-existing candidate activities from target DB for LINKED_INVESTMENT_ACCOUNTs
+        linked_investment_guids = {
+            g: a
+            for g, a in config.accounts.items()
+            if a.role == AccountRole.LINKED_INVESTMENT_ACCOUNT and a.linked_wf_account_id
+        }
+        candidate_activities_by_wf_id: dict[str, list[dict]] = {}
+        if linked_investment_guids:
+            linked_wf_ids = list({a.linked_wf_account_id for a in linked_investment_guids.values() if a.linked_wf_account_id})
+            placeholders = ",".join("?" for _ in linked_wf_ids)
+            cur.execute(
+                f"""
+                SELECT id, account_id, activity_type, activity_date, amount
+                FROM activities
+                WHERE account_id IN ({placeholders})
+                """,
+                linked_wf_ids,
+            )
+            for r in cur.fetchall():
+                act_wf_id = r[1]
+                if act_wf_id not in candidate_activities_by_wf_id:
+                    candidate_activities_by_wf_id[act_wf_id] = []
+                candidate_activities_by_wf_id[act_wf_id].append(
+                    {
+                        "id": r[0],
+                        "account_id": r[1],
+                        "activity_type": r[2],
+                        "date": r[3],
+                        "amount": Decimal(str(r[4])),
+                        "claimed": False,
+                    }
+                )
+
+        matched_transfers_count = 0
         activities_rows: list[tuple] = []
         assignment_rows: list[tuple] = []
         split_rows: list[tuple] = []
@@ -778,8 +837,108 @@ def run_migration(
                 subtype: str | None = None
                 source_group_id: str | None = None
                 flow_external: bool = False
+                matched_meta_extra: dict | None = None
 
-                if (is_internal_transfer or (has_pos_mig and has_neg_mig)) and len(mig_splits) >= 2:
+                # Check if this split transfers to/from a LINKED_INVESTMENT_ACCOUNT
+                linked_inv_ext = [s for s in ext_splits if s.account_guid in linked_investment_guids]
+                if linked_inv_ext and len(mig_splits) == 1:
+                    matched_inv_split = linked_inv_ext[0]
+                    inv_acc_entry = linked_investment_guids[matched_inv_split.account_guid]
+                    target_wf_inv_acc_id = inv_acc_entry.linked_wf_account_id
+                    cands = candidate_activities_by_wf_id.get(target_wf_inv_acc_id or "", [])
+                    match_id = _find_matching_wf_activity(
+                        activity_date, abs_val, cands, window_days=3
+                    )
+                    act_type = "TRANSFER_OUT" if s_m.value < Decimal("0.00") else "TRANSFER_IN"
+                    flow_external = False
+
+                    if match_id:
+                        # Matched with existing Wealthfolio activity!
+                        source_group_id = match_id
+                        matched_meta_extra = {
+                            "matched_existing_wf_activity_id": match_id,
+                            "match_type": "exact_amount_window",
+                        }
+                        matched_transfers_count += 1
+                    else:
+                        # Unmatched transfer to linked investment account: insert paired activity on the linked account
+                        source_group_id = f"gnc_xfer_{trn.guid}"
+                        inv_split_guid = matched_inv_split.guid
+                        paired_act_id = deterministic_uuid("gnucash_split", inv_split_guid)
+                        paired_act_type = "TRANSFER_IN" if s_m.value < Decimal("0.00") else "TRANSFER_OUT"
+                        paired_notes = _format_notes(trn, matched_inv_split)
+                        paired_meta_dict = {
+                            "gnucash_trn_guid": trn.guid,
+                            "gnucash_split_guid": inv_split_guid,
+                            "reconciled": matched_inv_split.reconciled_state,
+                            "flow": {"is_external": False},
+                            "transfer": {"kind": "internal_cash", "source": "wealthfolio"},
+                        }
+                        activities_rows.append(
+                            (
+                                paired_act_id,
+                                target_wf_inv_acc_id,
+                                None,
+                                paired_act_type,
+                                None,
+                                None,
+                                None,
+                                "POSTED",
+                                activity_date,
+                                None,
+                                "0",
+                                "0",
+                                amount_str,
+                                "0",
+                                None,
+                                "AUD",
+                                None,
+                                paired_notes,
+                                json.dumps(paired_meta_dict),
+                                "gnucash",
+                                inv_split_guid,
+                                source_group_id,
+                                f"gnucash:{inv_split_guid}",
+                                None,
+                                0,
+                                0,
+                                now,
+                                now,
+                            )
+                        )
+                        paired_asgn_id = stable_id(
+                            "activity_taxonomy_assignment", [paired_act_id, "spending_categories"]
+                        )
+                        assignment_rows.append(
+                            (
+                                paired_asgn_id,
+                                paired_act_id,
+                                "spending_categories",
+                                "cat_gnc_transfers_internal",
+                                10000,
+                                "manual",
+                                now,
+                                now,
+                            )
+                        )
+
+                    # Ensure the migrated bank/loan side is categorized as internal transfer
+                    xfer_asgn_id = stable_id(
+                        "activity_taxonomy_assignment", [act_id, "spending_categories"]
+                    )
+                    assignment_rows.append(
+                        (
+                            xfer_asgn_id,
+                            act_id,
+                            "spending_categories",
+                            "cat_gnc_transfers_internal",
+                            10000,
+                            "manual",
+                            now,
+                            now,
+                        )
+                    )
+                elif (is_internal_transfer or (has_pos_mig and has_neg_mig)) and len(mig_splits) >= 2:
                     # Internal transfer between migrated accounts
                     act_type = "TRANSFER_OUT" if s_m.value < Decimal("0.00") else "TRANSFER_IN"
                     source_group_id = f"gnc_xfer_{trn.guid}"
@@ -1093,6 +1252,8 @@ def run_migration(
                 if source_group_id:
                     meta_dict["flow"] = {"is_external": flow_external}
                     meta_dict["transfer"] = {"kind": "internal_cash", "source": "wealthfolio"}
+                if matched_meta_extra:
+                    meta_dict.update(matched_meta_extra)
                 meta_str = json.dumps(meta_dict)
 
                 activities_rows.append(
@@ -1220,6 +1381,7 @@ def run_migration(
             rules_created=rules_created,
             alt_assets_created=alt_assets_created,
             alt_quotes_created=alt_quotes_created,
+            matched_transfers_count=matched_transfers_count,
         )
     finally:
         conn.close()
