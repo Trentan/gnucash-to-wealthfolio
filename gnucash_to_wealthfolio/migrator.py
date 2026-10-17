@@ -65,6 +65,29 @@ def _normalize_split_amounts(
     return scaled
 
 
+def _purge_orphan_valuations_and_snapshots(cur: sqlite3.Cursor) -> int:
+    """Purge orphaned daily_account_valuation and holdings_snapshots whose account does not exist."""
+    cur.execute(
+        """
+        DELETE FROM snapshot_positions
+        WHERE snapshot_id IN (
+            SELECT id FROM holdings_snapshots WHERE account_id NOT IN (SELECT id FROM accounts)
+        );
+        """
+    )
+    cur.execute(
+        "DELETE FROM holdings_snapshots WHERE account_id NOT IN (SELECT id FROM accounts);"
+    )
+    deleted_snapshots = cur.rowcount if cur.rowcount != -1 else 0
+
+    cur.execute(
+        "DELETE FROM daily_account_valuation WHERE account_id NOT IN (SELECT id FROM accounts);"
+    )
+    deleted_valuations = cur.rowcount if cur.rowcount != -1 else 0
+
+    return deleted_snapshots + deleted_valuations
+
+
 ALTERNATIVE_ASSET_SPECS: list[dict] = []
 
 
@@ -73,6 +96,7 @@ def _migrate_alternative_assets_and_liabilities(
     cur: sqlite3.Cursor,
     now: str,
     asset_specs: list[dict] | None = None,
+    config: MappingConfig | None = None,
 ) -> tuple[int, int]:
     """Migrate Properties, Vehicles, Superannuation, and Loans/Mortgages into assets + quotes."""
     specs = asset_specs if asset_specs is not None else ALTERNATIVE_ASSET_SPECS
@@ -92,7 +116,19 @@ def _migrate_alternative_assets_and_liabilities(
     assets_created = 0
     quotes_created = 0
 
+    # Map path to account config if available for suppression / linked investment checks
+    acct_by_path = {a.gnc_path: a for a in config.accounts.values()} if config is not None else {}
+
     for spec in specs:
+        if spec.get("suppress_asset_creation"):
+            continue
+        mapped_acc = acct_by_path.get(spec["gnc_path"])
+        if mapped_acc is not None:
+            if getattr(mapped_acc, "suppress_asset_creation", False):
+                continue
+            if getattr(mapped_acc, "role", None) == AccountRole.LINKED_INVESTMENT_ACCOUNT:
+                continue
+
         gnc_acc = by_path.get(spec["gnc_path"])
         if gnc_acc is None:
             continue
@@ -266,15 +302,19 @@ def run_migration(
                 gnc_acc_ids,
             )
 
-        # 1b. Migrate standalone Alternative Assets & Liabilities (Properties, Vehicles, Super, Loans)
+        # 1b. Purge any historical dangling valuation / snapshot records for non-existent accounts
+        _purge_orphan_valuations_and_snapshots(cur)
+
+        # 1c. Migrate standalone Alternative Assets & Liabilities (Properties, Vehicles, Super, Loans)
         alt_specs = getattr(config, "alternative_assets", None)
         alt_assets_created, alt_quotes_created = _migrate_alternative_assets_and_liabilities(
-            book, cur, now, asset_specs=alt_specs
+            book, cur, now, asset_specs=alt_specs, config=config
         )
 
         # 2. Insert migrated accounts
         migrated_accounts = [
-            a for a in config.accounts.values() if a.wf_account_id is not None
+            a for a in config.accounts.values()
+            if a.wf_account_id is not None and a.role != AccountRole.LINKED_INVESTMENT_ACCOUNT
         ]
         accounts_created = 0
         for acc in sorted(migrated_accounts, key=lambda x: (x.is_archived, x.wf_name or "")):
@@ -285,6 +325,7 @@ def run_migration(
                     "gnucash_path": acc.gnc_path,
                 }
             )
+            is_active_val = 0 if acc.is_archived == 1 else 1
             cur.execute(
                 """
                 INSERT INTO accounts (
@@ -298,7 +339,7 @@ def run_migration(
                     acc.wf_name,
                     acc.wf_account_type,
                     acc.wf_group,
-                    acc.is_active,
+                    is_active_val,
                     now,
                     now,
                     meta_json,
