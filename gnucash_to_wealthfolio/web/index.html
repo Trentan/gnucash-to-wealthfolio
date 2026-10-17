@@ -269,6 +269,35 @@
     .status-badge.archived { background: #3b2d1d; color: #fcd34d; border: 1px solid #d9770655; }
     .status-badge.not-imported { background: #1e293b; color: #94a3b8; border: 1px dashed #64748b55; }
 
+    /* Visual Feedback Badges for Matched Records and Linked Portfolios */
+    .badge {
+      font-size: 0.725rem;
+      font-weight: 600;
+      padding: 0.18rem 0.5rem;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      white-space: nowrap;
+    }
+    .badge.badge-matched, .badge-matched {
+      background: #064e3b;
+      color: #6ee7b7;
+      border: 1px solid #10b98166;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+    .badge.badge-linked-portfolio, .badge-linked-portfolio {
+      background: #312e81;
+      color: #c7d2fe;
+      border: 1px solid #6366f166;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+    .badge.badge-role, .badge-role {
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #47556955;
+    }
+
     .btn-import-toggle {
       border: 1px solid;
       padding: 0.3rem 0.65rem;
@@ -1724,7 +1753,10 @@
               <span class="mono-cell" style="color: #cbd5e1;">${escapeHtml(cleanCounter)}</span>
             </td>
             <td>
-              <div style="font-weight: 600; color: #f1f5f9;">${escapeHtml(tx.payee || '(No Description)')}</div>
+              <div style="font-weight: 600; color: #f1f5f9; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+                <span>${escapeHtml(tx.payee || '(No Description)')}</span>
+                ${tx.matched_existing_wf_activity_id ? '<span class="badge badge-matched" title="Matched to existing Wealthfolio activity">✓ In Wealthfolio</span>' : ''}
+              </div>
               ${tx.memo && tx.memo !== tx.payee ? `<div style="font-size: 0.725rem; color: var(--text-muted);">${escapeHtml(tx.memo)}</div>` : ''}
             </td>
             <td style="text-align: center;">
@@ -2549,7 +2581,8 @@
         const prefix = pathParts.join(' › ');
 
         const isAlt = !!acc.alt_asset_name;
-        const scopeVal = isAlt ? 'NET_WORTH' : (isImp ? 'IMPORTED' : 'EXCLUDED');
+        const isLinkedInv = effRole === 'LINKED_INVESTMENT_ACCOUNT';
+        const scopeVal = isLinkedInv ? 'LINKED_INVESTMENT_ACCOUNT' : (isAlt ? 'NET_WORTH' : (isImp ? 'IMPORTED' : 'EXCLUDED'));
 
         return `
           <tr id="acc-row-${acc.gnc_guid}" style="${isChecked ? 'background: #1e1b4b33;' : (staged.role || staged.wf_name || staged.wf_group ? 'background: #1e1b4b22;' : '')}">
@@ -2561,11 +2594,13 @@
                 <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
                   <span class="acct-type-badge ${typeClass}">${escapeHtml(acc.acct_type || 'ACCT')}</span>
                   ${acc.is_mortgage_loan ? `<span class="mortgage-badge">🏠 Mortgage / Loan</span>` : ''}
+                  ${effRole === 'LINKED_INVESTMENT_ACCOUNT' ? `<span class="badge badge-linked-portfolio" title="Funneled directly into existing Wealthfolio portfolio">Linked Portfolio${acc.linked_wf_name ? ' (' + escapeHtml(acc.linked_wf_name) + ')' : ''}</span>` : ''}
                 </div>
                 <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                   ${prefix ? `<span style="color: var(--text-muted); font-size: 0.8rem;">${escapeHtml(prefix)} › </span>` : ''}
                   <strong style="color: var(--text);">${escapeHtml(leafName)}</strong>
                 </div>
+                ${effRole === 'LINKED_INVESTMENT_ACCOUNT' && acc.linked_wf_name ? `<div style="font-size: 0.75rem; color: #a5b4fc;">Target Wealthfolio Portfolio: <strong>${escapeHtml(acc.linked_wf_name)}</strong></div>` : ''}
                 ${acc.alt_asset_name ? `<div style="font-size: 0.75rem; color: #38bdf8;">Linked Wealthfolio Asset: <strong>${escapeHtml(acc.alt_asset_name)}</strong></div>` : ''}
               </div>
             </td>
@@ -2578,52 +2613,65 @@
               </span>
             </td>
             <td style="text-align: center;">
-              <select class="select-parent" style="font-size: 0.825rem; font-weight: 600; ${scopeVal === 'IMPORTED' ? 'color: #34d399; border-color: #059669;' : (scopeVal === 'NET_WORTH' ? 'color: #38bdf8; border-color: #0284c7;' : 'color: #94a3b8;')}" onchange="onAccountScopeChange('${acc.gnc_guid}', this.value)">
+              <select class="select-parent" style="font-size: 0.825rem; font-weight: 600; ${scopeVal === 'LINKED_INVESTMENT_ACCOUNT' ? 'color: #c7d2fe; border-color: #6366f1;' : (scopeVal === 'IMPORTED' ? 'color: #34d399; border-color: #059669;' : (scopeVal === 'NET_WORTH' ? 'color: #38bdf8; border-color: #0284c7;' : 'color: #94a3b8;'))}" onchange="onAccountScopeChange('${acc.gnc_guid}', this.value)">
+                ${isLinkedInv ? `<option value="LINKED_INVESTMENT_ACCOUNT" selected>🔗 Linked Portfolio</option>` : ''}
                 <option value="IMPORTED" ${scopeVal === 'IMPORTED' ? 'selected' : ''}>✓ Imported Account</option>
                 <option value="NET_WORTH" ${scopeVal === 'NET_WORTH' ? 'selected' : ''}>🏛️ Net Worth Asset</option>
                 <option value="EXCLUDED" ${scopeVal === 'EXCLUDED' ? 'selected' : ''}>⊘ Excluded / External</option>
               </select>
             </td>
             <td>
-              ${isAlt
-                ? `<span style="color: #38bdf8; font-size: 0.85rem; font-weight: 600;">🏛️ ${escapeHtml(acc.alt_display_code || 'Asset')}</span>`
-                : `<select class="select-parent" style="font-size: 0.825rem; ${!isImp ? 'opacity: 0.6;' : ''}" onchange="onAccountFieldChange('${acc.gnc_guid}', 'wf_account_type', this.value)">
-                    <option value="CASH" ${effType === 'CASH' ? 'selected' : ''}>💵 Cash / Banking</option>
-                    <option value="CREDIT_CARD" ${effType === 'CREDIT_CARD' ? 'selected' : ''}>💳 Credit Card</option>
-                    <option value="LOAN" ${effType === 'LOAN' ? 'selected' : ''}>🏠 Mortgage / Loan</option>
-                    <option value="INVESTMENT" ${effType === 'INVESTMENT' ? 'selected' : ''}>📈 Investment Asset</option>
-                    <option value="OTHER" ${effType === 'OTHER' || effType === '-' ? 'selected' : ''}>📦 Other</option>
-                  </select>`
+              ${isLinkedInv
+                ? `<span class="badge badge-linked-portfolio">📈 Portfolio</span>`
+                : (isAlt
+                  ? `<span style="color: #38bdf8; font-size: 0.85rem; font-weight: 600;">🏛️ ${escapeHtml(acc.alt_display_code || 'Asset')}</span>`
+                  : `<select class="select-parent" style="font-size: 0.825rem; ${!isImp ? 'opacity: 0.6;' : ''}" onchange="onAccountFieldChange('${acc.gnc_guid}', 'wf_account_type', this.value)">
+                      <option value="CASH" ${effType === 'CASH' ? 'selected' : ''}>💵 Cash / Banking</option>
+                      <option value="CREDIT_CARD" ${effType === 'CREDIT_CARD' ? 'selected' : ''}>💳 Credit Card</option>
+                      <option value="LOAN" ${effType === 'LOAN' ? 'selected' : ''}>🏠 Mortgage / Loan</option>
+                      <option value="INVESTMENT" ${effType === 'INVESTMENT' ? 'selected' : ''}>📈 Investment Asset</option>
+                      <option value="OTHER" ${effType === 'OTHER' || effType === '-' ? 'selected' : ''}>📦 Other</option>
+                    </select>`
+                )
               }
             </td>
             <td>
-              ${isAlt
-                ? `<span style="font-size: 0.825rem; color: #10b981;">🟢 Active Asset</span>`
-                : `<select class="select-parent" style="font-size: 0.825rem; ${!isImp ? 'opacity: 0.6;' : ''}" onchange="onAccountFieldChange('${acc.gnc_guid}', 'status', this.value)">
-                    <option value="ACTIVE" ${effStatus === 'ACTIVE' ? 'selected' : ''}>🟢 Active</option>
-                    <option value="ARCHIVED" ${effStatus === 'ARCHIVED' ? 'selected' : ''}>📦 Archived</option>
-                  </select>`
+              ${isLinkedInv
+                ? `<span style="font-size: 0.825rem; color: #818cf8;">🔗 Linked</span>`
+                : (isAlt
+                  ? `<span style="font-size: 0.825rem; color: #10b981;">🟢 Active Asset</span>`
+                  : `<select class="select-parent" style="font-size: 0.825rem; ${!isImp ? 'opacity: 0.6;' : ''}" onchange="onAccountFieldChange('${acc.gnc_guid}', 'status', this.value)">
+                      <option value="ACTIVE" ${effStatus === 'ACTIVE' ? 'selected' : ''}>🟢 Active</option>
+                      <option value="ARCHIVED" ${effStatus === 'ARCHIVED' ? 'selected' : ''}>📦 Archived</option>
+                    </select>`
+                )
               }
             </td>
             <td>
-              ${isAlt
-                ? `<span style="color: var(--text); font-size: 0.85rem; font-weight: 500;">${escapeHtml(acc.alt_asset_name)}</span>`
-                : `<input type="text" class="subcat-input" id="acc-name-${acc.gnc_guid}"
-                    value="${escapeHtml(effName)}"
-                    placeholder="${isImp ? 'Wealthfolio Account Name' : 'Excluded'}"
-                    style="${!isImp ? 'opacity: 0.6;' : ''}"
-                    oninput="onAccountFieldChange('${acc.gnc_guid}', 'wf_name', this.value)">`
+              ${isLinkedInv
+                ? `<span style="color: var(--text); font-size: 0.85rem; font-weight: 500;">${escapeHtml(acc.linked_wf_name || '(Wealthfolio Portfolio)')}</span>`
+                : (isAlt
+                  ? `<span style="color: var(--text); font-size: 0.85rem; font-weight: 500;">${escapeHtml(acc.alt_asset_name)}</span>`
+                  : `<input type="text" class="subcat-input" id="acc-name-${acc.gnc_guid}"
+                      value="${escapeHtml(effName)}"
+                      placeholder="${isImp ? 'Wealthfolio Account Name' : 'Excluded'}"
+                      style="${!isImp ? 'opacity: 0.6;' : ''}"
+                      oninput="onAccountFieldChange('${acc.gnc_guid}', 'wf_name', this.value)">`
+                )
               }
             </td>
             <td>
-              ${isAlt
-                ? `<span style="color: var(--text-muted); font-size: 0.8rem;">Assets & Portfolio</span>`
-                : `<input type="text" class="subcat-input" id="acc-group-${acc.gnc_guid}"
-                    list="wf-group-datalist"
-                    value="${escapeHtml(effGroup)}"
-                    placeholder="${isImp ? 'e.g. Banking, Loans' : '-'}"
-                    style="${!isImp ? 'opacity: 0.6;' : ''}"
-                    oninput="onAccountFieldChange('${acc.gnc_guid}', 'wf_group', this.value)">`
+              ${isLinkedInv
+                ? `<span style="color: var(--text-muted); font-size: 0.8rem;">Investments</span>`
+                : (isAlt
+                  ? `<span style="color: var(--text-muted); font-size: 0.8rem;">Assets & Portfolio</span>`
+                  : `<input type="text" class="subcat-input" id="acc-group-${acc.gnc_guid}"
+                      list="wf-group-datalist"
+                      value="${escapeHtml(effGroup)}"
+                      placeholder="${isImp ? 'e.g. Banking, Loans' : '-'}"
+                      style="${!isImp ? 'opacity: 0.6;' : ''}"
+                      oninput="onAccountFieldChange('${acc.gnc_guid}', 'wf_group', this.value)">`
+                )
               }
             </td>
           </tr>

@@ -77,6 +77,21 @@ DEFAULT_PARENTS = [
 ]
 
 
+def _render_transaction_badge(tx_meta: dict | None) -> str:
+    """Render an HTML badge for a transaction matched to an existing Wealthfolio activity."""
+    if tx_meta and tx_meta.get("matched_existing_wf_activity_id"):
+        return '<span class="badge badge-matched" title="Matched to existing Wealthfolio activity">✓ In Wealthfolio</span>'
+    return ""
+
+
+def _render_account_role_pill(role: str, linked_name: str | None = None) -> str:
+    """Render an HTML pill/badge representing an account role, specially highlighting linked investment accounts."""
+    if role == "LINKED_INVESTMENT_ACCOUNT":
+        label = f"Linked Portfolio ({linked_name})" if linked_name else "Linked Portfolio"
+        return f'<span class="badge badge-linked-portfolio" title="Funneled directly into existing Wealthfolio portfolio">{label}</span>'
+    return f'<span class="badge badge-role">{role}</span>'
+
+
 def _build_all_transactions(server):
     if not hasattr(server, "book") or not server.book or not server.book.transactions:
         return []
@@ -111,6 +126,51 @@ def _build_all_transactions(server):
         }
 
     migrated_guids = {g: a for g, a in cfg.accounts.items() if a.wf_account_id is not None}
+    linked_investment_guids = {
+        g: a
+        for g, a in cfg.accounts.items()
+        if a.role == AccountRole.LINKED_INVESTMENT_ACCOUNT and getattr(a, "linked_wf_account_id", None)
+    }
+    candidate_activities_by_wf_id: dict[str, list[dict]] = {}
+    db_to_query = getattr(server, "target_db", None)
+    if not db_to_query or not db_to_query.exists():
+        db_to_query = getattr(server, "source_db", None)
+
+    if linked_investment_guids and db_to_query and db_to_query.exists():
+        import sqlite3
+        try:
+            conn = sqlite3.connect(f"file:{db_to_query.resolve()}?mode=ro", uri=True)
+            cur = conn.cursor()
+            linked_wf_ids = list({a.linked_wf_account_id for a in linked_investment_guids.values() if a.linked_wf_account_id})
+            placeholders = ",".join("?" for _ in linked_wf_ids)
+            cur.execute(
+                f"""
+                SELECT id, account_id, activity_type, activity_date, amount
+                FROM activities
+                WHERE account_id IN ({placeholders})
+                """,
+                linked_wf_ids,
+            )
+            for r in cur.fetchall():
+                act_wf_id = r[1]
+                if act_wf_id not in candidate_activities_by_wf_id:
+                    candidate_activities_by_wf_id[act_wf_id] = []
+                candidate_activities_by_wf_id[act_wf_id].append(
+                    {
+                        "id": r[0],
+                        "account_id": r[1],
+                        "activity_type": r[2],
+                        "date": r[3],
+                        "amount": Decimal(str(r[4])),
+                        "claimed": False,
+                    }
+                )
+            conn.close()
+        except Exception:
+            pass
+
+    from gnucash_to_wealthfolio.migrator import _find_matching_wf_activity
+
     by_guid = server.book.accounts
     tx_overrides = getattr(cfg, "transaction_overrides", {})
     subcat_by_id = {c.category_id: c for c in cfg.categories.values()}
@@ -313,6 +373,23 @@ def _build_all_transactions(server):
                 else:
                     act_type = "DEPOSIT"
 
+            matched_existing_wf_activity_id = None
+            linked_inv_ext = [s for s in ext_splits if s.account_guid in linked_investment_guids]
+            if linked_inv_ext and len(mig_splits) == 1:
+                matched_inv_split = linked_inv_ext[0]
+                inv_acc_entry = linked_investment_guids[matched_inv_split.account_guid]
+                target_wf_inv_acc_id = inv_acc_entry.linked_wf_account_id
+                cands = candidate_activities_by_wf_id.get(target_wf_inv_acc_id or "", [])
+                activity_date = f"{trn.date_posted}T00:00:00.000Z"
+                match_id = _find_matching_wf_activity(
+                    activity_date, Decimal(str(amount)), cands, window_days=3
+                )
+                act_type = "TRANSFER_OUT" if sm.value < Decimal("0.00") else "TRANSFER_IN"
+                if match_id:
+                    matched_existing_wf_activity_id = match_id
+
+            badge_html = _render_transaction_badge({"matched_existing_wf_activity_id": matched_existing_wf_activity_id}) if matched_existing_wf_activity_id else ""
+
             tx_list.append(
                 {
                     "guid": trn.guid,
@@ -334,6 +411,8 @@ def _build_all_transactions(server):
                     "is_override": is_override,
                     "is_direct": is_direct,
                     "needs_review": (not cat_id or cat_id == "cat_unmapped" or is_direct),
+                    "matched_existing_wf_activity_id": matched_existing_wf_activity_id,
+                    "badge_html": badge_html,
                 }
             )
 
@@ -1137,6 +1216,9 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
                     "wf_name": acc.wf_name or alt_asset_name,
                     "wf_account_type": acc.wf_account_type,
                     "wf_group": acc.wf_group,
+                    "linked_wf_account_id": getattr(acc, "linked_wf_account_id", None),
+                    "linked_wf_name": getattr(acc, "linked_wf_name", None),
+                    "suppress_asset_creation": getattr(acc, "suppress_asset_creation", False),
                     "is_active": acc.is_active,
                     "is_archived": acc.is_archived,
                     "tx_count": acc.tx_count,
@@ -1480,6 +1562,12 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
                     entry.wf_account_type = upd.get("wf_account_type")
                 if "wf_group" in upd:
                     entry.wf_group = upd.get("wf_group")
+                if "linked_wf_account_id" in upd:
+                    entry.linked_wf_account_id = upd.get("linked_wf_account_id")
+                if "linked_wf_name" in upd:
+                    entry.linked_wf_name = upd.get("linked_wf_name")
+                if "suppress_asset_creation" in upd:
+                    entry.suppress_asset_creation = bool(upd.get("suppress_asset_creation"))
                 entry.is_active = int(upd.get("is_active", 0))
                 entry.is_archived = int(upd.get("is_archived", 0))
 
