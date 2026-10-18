@@ -141,30 +141,43 @@ def _build_all_transactions(server):
         try:
             conn = sqlite3.connect(f"file:{db_to_query.resolve()}?mode=ro", uri=True)
             cur = conn.cursor()
-            linked_wf_ids = list({a.linked_wf_account_id for a in linked_investment_guids.values() if a.linked_wf_account_id})
-            placeholders = ",".join("?" for _ in linked_wf_ids)
-            cur.execute(
-                f"""
-                SELECT id, account_id, activity_type, activity_date, amount
-                FROM activities
-                WHERE account_id IN ({placeholders})
-                """,
-                linked_wf_ids,
-            )
-            for r in cur.fetchall():
-                act_wf_id = r[1]
-                if act_wf_id not in candidate_activities_by_wf_id:
-                    candidate_activities_by_wf_id[act_wf_id] = []
-                candidate_activities_by_wf_id[act_wf_id].append(
-                    {
-                        "id": r[0],
-                        "account_id": r[1],
-                        "activity_type": r[2],
-                        "date": r[3],
-                        "amount": Decimal(str(r[4])),
-                        "claimed": False,
-                    }
+            linked_wf_ids = list({
+                wid.strip()
+                for a in linked_investment_guids.values()
+                if a.linked_wf_account_id
+                for wid in a.linked_wf_account_id.split(",")
+                if wid.strip()
+            })
+            if linked_wf_ids:
+                placeholders = ",".join("?" for _ in linked_wf_ids)
+                cur.execute(
+                    f"""
+                    SELECT id, account_id, activity_type, activity_date, amount
+                    FROM activities
+                    WHERE account_id IN ({placeholders})
+                    """,
+                    linked_wf_ids,
                 )
+                for r in cur.fetchall():
+                    act_wf_id = r[1]
+                    if act_wf_id not in candidate_activities_by_wf_id:
+                        candidate_activities_by_wf_id[act_wf_id] = []
+                    raw_amt = r[4]
+                    amt_dec = (
+                        Decimal(str(raw_amt))
+                        if raw_amt is not None and str(raw_amt).strip() not in ("", "None")
+                        else Decimal("0.00")
+                    )
+                    candidate_activities_by_wf_id[act_wf_id].append(
+                        {
+                            "id": r[0],
+                            "account_id": r[1],
+                            "activity_type": r[2],
+                            "date": r[3],
+                            "amount": amt_dec,
+                            "claimed": False,
+                        }
+                    )
             conn.close()
         except Exception:
             pass
@@ -378,8 +391,14 @@ def _build_all_transactions(server):
             if linked_inv_ext and len(mig_splits) == 1:
                 matched_inv_split = linked_inv_ext[0]
                 inv_acc_entry = linked_investment_guids[matched_inv_split.account_guid]
-                target_wf_inv_acc_id = inv_acc_entry.linked_wf_account_id
-                cands = candidate_activities_by_wf_id.get(target_wf_inv_acc_id or "", [])
+                target_wf_inv_acc_ids = [
+                    wid.strip()
+                    for wid in (inv_acc_entry.linked_wf_account_id or "").split(",")
+                    if wid.strip()
+                ]
+                cands: list[dict] = []
+                for wid in target_wf_inv_acc_ids:
+                    cands.extend(candidate_activities_by_wf_id.get(wid, []))
                 activity_date = f"{trn.date_posted}T00:00:00.000Z"
                 match_id = _find_matching_wf_activity(
                     activity_date, Decimal(str(amount)), cands, window_days=3

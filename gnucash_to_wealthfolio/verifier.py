@@ -83,7 +83,8 @@ def verify_migration(
                 pre_existing_intact = False
                 break
             mig_cur.execute(
-                "SELECT COUNT(*) FROM activities WHERE account_id = ?;", (acc_id,)
+                "SELECT COUNT(*) FROM activities WHERE account_id = ? AND (source_system IS NULL OR source_system != 'gnucash');",
+                (acc_id,),
             )
             cnt = mig_cur.fetchone()[0]
             if cnt != src_act_counts.get(acc_id, 0):
