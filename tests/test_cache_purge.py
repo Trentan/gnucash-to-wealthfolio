@@ -133,7 +133,7 @@ def test_account_archive_flags_and_linked_investment_exclusion():
 
         # Check active and archived flags
         assert account_map["wf-act"] == ("Active Bank", 1, 0)
-        assert account_map["wf-arch"] == ("Archived Bank", 0, 1)
+        assert account_map["wf-arch"] == ("Archived Bank", 1, 1)
 
 
 def test_suppress_asset_creation_in_alt_assets():

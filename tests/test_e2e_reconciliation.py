@@ -96,7 +96,7 @@ def _init_source_db(db_path: Path):
     cur.execute(
         """
         INSERT INTO activities (id, account_id, activity_type, status, activity_date, amount, currency, created_at, updated_at)
-        VALUES ('act-wf-inv-1', 'wf-pre-inv', 'DEPOSIT', 'POSTED', '2025-06-15T00:00:00.000Z', '1500.00', 'AUD', '2025-06-15', '2025-06-15');
+        VALUES ('act-wf-inv-1', 'wf-pre-inv', 'TRANSFER_IN', 'POSTED', '2025-06-15T00:00:00.000Z', '1500.00', 'AUD', '2025-06-15', '2025-06-15');
         """
     )
 
@@ -298,7 +298,7 @@ def test_end_to_end_migration_and_reconciliation(tmp_path: Path):
 
     # Archived account
     assert "wf-archived-bank" in accounts_by_id
-    assert accounts_by_id["wf-archived-bank"][2] == 0  # is_active = 0
+    assert accounts_by_id["wf-archived-bank"][2] == 1  # is_active = 1
     assert accounts_by_id["wf-archived-bank"][3] == 1  # is_archived = 1
 
     # Linked investment account is NOT duplicated in accounts or assets

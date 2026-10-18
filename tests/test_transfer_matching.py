@@ -102,7 +102,7 @@ def test_transfer_matching_end_to_end_migration(tmp_path):
     cur.execute(
         """
         INSERT INTO activities (id, account_id, activity_type, status, activity_date, amount, currency, created_at, updated_at)
-        VALUES ('act-wf-existing-1', 'wf-inv-acc', 'DEPOSIT', 'POSTED', '2025-11-03T00:00:00.000Z', '1000.00', 'AUD', '2025-11-03', '2025-11-03');
+        VALUES ('act-wf-existing-1', 'wf-inv-acc', 'TRANSFER_IN', 'POSTED', '2025-11-03T00:00:00.000Z', '1000.00', 'AUD', '2025-11-03', '2025-11-03');
         """
     )
     conn.commit()
@@ -194,13 +194,13 @@ def test_transfer_matching_end_to_end_migration(tmp_path):
     # Total activities in target DB:
     # 1 pre-existing activity ('act-wf-existing-1')
     # 1 matched transfer activity on bank account (TRANSFER_OUT)
-    # 2 paired activities for unmatched transfer (1 on bank account TRANSFER_OUT, 1 on investment account TRANSFER_IN)
-    # Total = 4
+    # 1 external transfer activity on bank account (WITHDRAWAL) - no phantom activity on investment account!
+    # Total = 3
     t_cur.execute("SELECT id, account_id, activity_type, source_group_id, amount, metadata FROM activities ORDER BY activity_date;")
     acts = t_cur.fetchall()
     target_conn.close()
 
-    assert len(acts) == 4
+    assert len(acts) == 3
 
     # Matched transfer check
     import json
@@ -213,9 +213,12 @@ def test_transfer_matching_end_to_end_migration(tmp_path):
     assert meta["matched_existing_wf_activity_id"] == "act-wf-existing-1"
     assert meta["match_type"] == "exact_amount_window"
 
-    # Unmatched transfer check: paired activities created
-    unmatched_acts = [a for a in acts if a[3] == "gnc_xfer_tx-unmatched"]
-    assert len(unmatched_acts) == 2
-    unmatched_accounts = {a[1] for a in unmatched_acts}
-    assert unmatched_accounts == {"wf-bank-acc", "wf-inv-acc"}
+    # Unmatched transfer check: external WITHDRAWAL on bank, zero activities injected into wf-inv-acc
+    unmatched_acts = [a for a in acts if a[1] == "wf-bank-acc" and Decimal(str(a[4])) == Decimal("250.00")]
+    assert len(unmatched_acts) == 1
+    u_act = unmatched_acts[0]
+    assert u_act[2] == "WITHDRAWAL"
+    assert u_act[3] is None  # no source_group_id
+    inv_acts = [a for a in acts if a[1] == "wf-inv-acc"]
+    assert len(inv_acts) == 1  # only the pre-existing one
 
