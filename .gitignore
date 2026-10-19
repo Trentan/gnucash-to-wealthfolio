@@ -7,6 +7,9 @@
 # Wealthfolio databases, backups, and generated data
 backups/
 output/
+scratch/
+take_screenshot.ps1
+ARGON_PRE_RELEASE_EVALUATION.md
 *.db
 *.sqlite
 *.sqlite3

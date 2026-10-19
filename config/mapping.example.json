@@ -607,7 +607,32 @@
     }
   ],
   "rules": [],
-  "alternative_assets": [],
+  "alternative_assets": [
+    {
+      "gnc_path": "Assets:Fixed Assets:Real Estate:123 Sample St",
+      "kind": "PROPERTY",
+      "name": "123 Sample St (Primary Residence)",
+      "display_code": "PROP-SAMPLE",
+      "currency": "AUD",
+      "min_quote_date": "2018-01-01",
+      "interpolate_quarterly": true,
+      "base_quotes": [
+        ["2018-01-01", 650000.00],
+        ["2021-01-01", 780000.00],
+        ["2024-01-01", 920000.00]
+      ]
+    },
+    {
+      "gnc_path": "Liabilities:Mortgages:Sample Mortgage",
+      "kind": "LIABILITY",
+      "name": "Home Loan (123 Sample St)",
+      "display_code": "LOAN-SAMPLE",
+      "currency": "AUD",
+      "min_quote_date": "2018-01-01",
+      "include_sub_accounts": true,
+      "allow_zeros": true
+    }
+  ],
   "transaction_overrides": {},
   "budget_group_overrides": {}
 }

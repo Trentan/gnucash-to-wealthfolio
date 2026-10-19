@@ -112,6 +112,33 @@ class TestMigrator(unittest.TestCase):
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+    def test_interpolate_quarterly_quotes(self):
+        from gnucash_to_wealthfolio.migrator import interpolate_quarterly_quotes
+
+        base_quotes = [
+            ("2020-01-01", Decimal("500000.00")),
+            ("2021-01-01", Decimal("600000.00")),
+            ("2021-06-01", Decimal("0.00")),
+        ]
+        interpolated = interpolate_quarterly_quotes(base_quotes)
+        # Should contain base quotes plus quarterly points between 2020-01-01 and 2021-01-01 (~3 points)
+        # and hold 600,000 between 2021-01-01 and 2021-06-01
+        days = [q[0] for q in interpolated]
+        self.assertIn("2020-01-01", days)
+        self.assertIn("2020-04-01", days)
+        self.assertIn("2020-07-01", days)
+        self.assertIn("2020-09-30", days)
+        self.assertIn("2021-01-01", days)
+        self.assertIn("2021-06-01", days)
+
+        # Check values
+        val_by_day = {q[0]: q[1] for q in interpolated}
+        self.assertEqual(val_by_day["2020-01-01"], Decimal("500000.00"))
+        self.assertGreater(val_by_day["2020-04-01"], Decimal("520000.00"))
+        self.assertEqual(val_by_day["2021-01-01"], Decimal("600000.00"))
+        self.assertEqual(val_by_day["2021-06-01"], Decimal("0.00"))
+
 
 if __name__ == "__main__":
     unittest.main()
+
