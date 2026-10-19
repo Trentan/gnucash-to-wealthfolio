@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import json
 from pathlib import Path
@@ -116,6 +116,52 @@ def _purge_orphan_valuations_and_snapshots(cur: sqlite3.Cursor) -> int:
 ALTERNATIVE_ASSET_SPECS: list[dict] = []
 
 
+def interpolate_quarterly_quotes(
+    base_quotes: list[tuple[str, Decimal]],
+    step_days: int = 91,
+) -> list[tuple[str, Decimal, str | None]]:
+    """Generate quarterly interpolated quotes between valuation points spaced >100 days apart.
+    
+    If the subsequent quote is 0.00 (e.g. sale / settlement), the preceding valuation is held
+    until sale date rather than decaying to zero.
+    Returns list of (day_str, price, notes).
+    """
+    if not base_quotes:
+        return []
+
+    sorted_quotes = sorted(base_quotes, key=lambda q: q[0])
+    result_by_day: dict[str, tuple[Decimal, str | None]] = {}
+
+    for day_str, val in sorted_quotes:
+        result_by_day[day_str] = (val, None)
+
+    for i in range(len(sorted_quotes) - 1):
+        d1_str, p1 = sorted_quotes[i]
+        d2_str, p2 = sorted_quotes[i + 1]
+
+        d1 = datetime.strptime(d1_str, "%Y-%m-%d")
+        d2 = datetime.strptime(d2_str, "%Y-%m-%d")
+        total_days = (d2 - d1).days
+
+        if total_days <= 100:
+            continue
+
+        cur = d1 + timedelta(days=step_days)
+        while cur < d2 - timedelta(days=30):
+            day_str = cur.strftime("%Y-%m-%d")
+            if day_str not in result_by_day:
+                days_elapsed = (cur - d1).days
+                if p2 == Decimal("0.00"):
+                    interp_p = p1
+                else:
+                    fraction = Decimal(str(days_elapsed)) / Decimal(str(total_days))
+                    interp_p = (p1 + fraction * (p2 - p1)).quantize(Decimal("0.01"))
+                result_by_day[day_str] = (interp_p, "Quarterly interpolation")
+            cur += timedelta(days=step_days)
+
+    return [(d, result_by_day[d][0], result_by_day[d][1]) for d in sorted(result_by_day.keys())]
+
+
 def _migrate_alternative_assets_and_liabilities(
     book: GncBook,
     cur: sqlite3.Cursor,
@@ -133,7 +179,7 @@ def _migrate_alternative_assets_and_liabilities(
     for spec in specs:
         gnc_acc = by_path.get(spec["gnc_path"])
         if gnc_acc is not None:
-            asset_id_by_path[spec["gnc_path"]] = deterministic_uuid(
+            asset_id_by_path[spec["gnc_path"]] = spec.get("id") or deterministic_uuid(
                 "gnucash_alt_asset", gnc_acc.guid
             )
 
@@ -181,13 +227,15 @@ def _migrate_alternative_assets_and_liabilities(
             if "address" in spec:
                 meta["address"] = spec["address"]
 
+        is_active_val = spec.get("is_active", 1)
+
         cur.execute(
             """
             INSERT INTO assets (
                 id, kind, name, display_code, notes, metadata, is_active,
                 quote_mode, quote_ccy, instrument_type, instrument_symbol,
                 instrument_exchange_mic, provider_config, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, 1, 'MANUAL', 'AUD', NULL, NULL, NULL, NULL, ?, ?);
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'MANUAL', 'AUD', NULL, NULL, NULL, NULL, ?, ?);
             """,
             (
                 asset_id,
@@ -196,37 +244,77 @@ def _migrate_alternative_assets_and_liabilities(
                 spec["display_code"],
                 f"Migrated from GnuCash: {gnc_acc.full_path}",
                 json.dumps(meta),
+                is_active_val,
                 now,
                 now,
             ),
         )
         assets_created += 1
 
-        # Build chronological daily closing balances from GnuCash splits
-        daily_deltas: dict[str, Decimal] = {}
-        for trn in book.transactions:
-            for sp in trn.splits:
-                if sp.account_guid == gnc_acc.guid and sp.value != Decimal("0.00"):
-                    daily_deltas[trn.date_posted] = (
-                        daily_deltas.get(trn.date_posted, Decimal("0.00")) + sp.value
-                    )
+        # Determine all account GUIDs contributing to this asset/liability
+        # (supports parent accounts with sub-splits like loans or properties under construction)
+        target_guids = {gnc_acc.guid}
+        include_subs = spec.get("include_sub_accounts", False)
+        if include_subs:
+            for acc in book.accounts.values():
+                if acc.full_path.startswith(f"{gnc_acc.full_path}:"):
+                    target_guids.add(acc.guid)
+        include_paths = spec.get("include_paths")
+        if include_paths:
+            for p in include_paths:
+                if p in by_path:
+                    target_guids.add(by_path[p].guid)
 
-        running = Decimal("0.00")
-        min_date = spec["min_quote_date"]
-        quote_by_day: dict[str, Decimal] = {}
-        for day in sorted(daily_deltas.keys()):
-            running += daily_deltas[day]
-            if day >= min_date and abs(running) > Decimal("0.00"):
-                quote_by_day[day] = abs(running)
+        # Check if custom valuation points (base_quotes) are provided
+        if "base_quotes" in spec and spec["base_quotes"]:
+            quote_by_day = {d: Decimal(str(v)) for d, v in spec["base_quotes"]}
+        else:
+            # Build chronological daily closing balances from GnuCash splits
+            daily_deltas: dict[str, Decimal] = {}
+            for trn in book.transactions:
+                for sp in trn.splits:
+                    if sp.account_guid in target_guids and sp.value != Decimal("0.00"):
+                        daily_deltas[trn.date_posted] = (
+                            daily_deltas.get(trn.date_posted, Decimal("0.00")) + sp.value
+                        )
 
-        final_abs = abs(running)
-        if final_abs > Decimal("0.00"):
-            quote_by_day[today_str] = final_abs
+            min_date = spec.get("min_quote_date", "1970-01-01")
+            sale_date = spec.get("sale_date")
+            allow_zeros = spec.get("allow_zeros", spec["kind"] == "LIABILITY")
+            running = Decimal("0.00")
+            quote_by_day: dict[str, Decimal] = {}
+            balance_at_min_date = Decimal("0.00")
+
+            for day in sorted(daily_deltas.keys()):
+                running += daily_deltas[day]
+                if day <= min_date:
+                    balance_at_min_date = abs(running)
+                if day >= min_date and (abs(running) > Decimal("0.00") or allow_zeros):
+                    quote_by_day[day] = abs(running)
+
+            if min_date not in quote_by_day and balance_at_min_date > Decimal("0.00"):
+                quote_by_day[min_date] = balance_at_min_date
+
+            if sale_date:
+                quote_by_day[sale_date] = Decimal("0.00")
+            elif is_active_val != 0:
+                final_abs = abs(running)
+                if final_abs > Decimal("0.00"):
+                    quote_by_day[today_str] = final_abs
+
+        # Check if quarterly interpolation is enabled (default true for PROPERTY)
+        interpolate = spec.get("interpolate_quarterly", spec["kind"] == "PROPERTY")
+        base_quotes = [(d, quote_by_day[d]) for d in sorted(quote_by_day.keys())]
+
+        if interpolate and len(base_quotes) >= 2:
+            final_quotes = interpolate_quarterly_quotes(base_quotes)
+        else:
+            final_quotes = [(d, val, None) for d, val in base_quotes]
 
         quote_rows = []
-        for day, val in sorted(quote_by_day.items()):
+        for day, val, note in final_quotes:
             val_str = f"{val:.2f}"
-            q_id = f"{asset_id}_{day}_MANUAL"
+            q_id = f"{asset_id}_{day}"
             ts_str = f"{day}T12:00:00+00:00"
             quote_rows.append(
                 (
@@ -241,7 +329,7 @@ def _migrate_alternative_assets_and_liabilities(
                     val_str,
                     "0",
                     "AUD",
-                    None,
+                    note,
                     now,
                     ts_str,
                 )
