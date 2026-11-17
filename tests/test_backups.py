@@ -90,6 +90,34 @@ class TestBackups(unittest.TestCase):
             self.assertEqual(len(list_mapping_backups(mapping_dir)), 20)
 
 
+    def test_list_and_delete_backups_with_subfolder(self):
+        from gnucash_to_wealthfolio.backups import get_wealthfolio_backup_dir, get_mapping_backup_dir
+        with tempfile.TemporaryDirectory() as tmpdir:
+            backup_root = Path(tmpdir)
+            wf_sub = get_wealthfolio_backup_dir(backup_root)
+            wf_sub.mkdir(parents=True)
+
+            # File in subfolder
+            f1 = wf_sub / "app_backup_20261021_100000.db"
+            f1.write_bytes(b"data1")
+            import os
+            os.utime(f1, (1700000200, 1700000200))
+
+            # Legacy file in root
+            f2 = backup_root / "app_backup_20261020_090000.db"
+            f2.write_bytes(b"data2")
+            os.utime(f2, (1700000100, 1700000100))
+
+            all_backups = list_backups(backup_root)
+            self.assertEqual(len(all_backups), 2)
+            self.assertEqual(all_backups[0].filename, "app_backup_20261021_100000.db")
+
+            # Delete file in subfolder
+            deleted = delete_backup(backup_root, "app_backup_20261021_100000.db")
+            self.assertTrue(deleted)
+            self.assertEqual(len(list_backups(backup_root)), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
 

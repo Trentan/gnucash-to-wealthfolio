@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import shutil
@@ -7,6 +8,66 @@ DEFAULT_MAPPING_PATH: Path = Path("config/mapping.json")
 DEFAULT_BACKUP_DIR: Path = Path("backups")
 DEFAULT_TARGET_DB_PATH: Path = Path("output/app_migrated.db")
 DEFAULT_REPORT_PATH: Path = Path("output/migration_report.md")
+DEFAULT_SETTINGS_PATH: Path = Path("config/app_settings.json")
+
+
+def load_app_settings(settings_path: Path = DEFAULT_SETTINGS_PATH) -> dict:
+    """Load persistent app settings from JSON, returning empty dict if missing or invalid."""
+    if not settings_path.exists():
+        return {}
+    try:
+        data = json.loads(settings_path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_app_settings(settings: dict, settings_path: Path = DEFAULT_SETTINGS_PATH) -> None:
+    """Save persistent app settings to JSON, creating parent directories if needed."""
+    try:
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        existing = load_app_settings(settings_path)
+        existing.update(settings)
+        settings_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"Warning: Failed to save app settings to {settings_path}: {e}", file=sys.stderr)
+
+
+def get_active_backup_dir(cli_override: Path | None = None) -> Path:
+    """Resolve active backup root directory: CLI arg -> app_settings.json -> default."""
+    if cli_override and cli_override != DEFAULT_BACKUP_DIR:
+        return cli_override
+    settings = load_app_settings()
+    if "backup_dir" in settings and settings["backup_dir"]:
+        return Path(settings["backup_dir"])
+    return cli_override or DEFAULT_BACKUP_DIR
+
+
+def get_active_mapping_path(cli_override: Path | None = None) -> Path:
+    """Resolve active mapping path: CLI arg -> app_settings.json -> default."""
+    if cli_override and cli_override != DEFAULT_MAPPING_PATH:
+        return cli_override
+    settings = load_app_settings()
+    if "mapping_path" in settings and settings["mapping_path"]:
+        return Path(settings["mapping_path"])
+    return cli_override or DEFAULT_MAPPING_PATH
+
+
+def get_active_gnucash_path(cli_override: Path | None = None) -> Path | None:
+    """Resolve active GnuCash file path: CLI arg -> app_settings.json -> auto-detect default."""
+    settings = load_app_settings()
+    stored_gnucash = Path(settings["gnucash_path"]) if "gnucash_path" in settings and settings["gnucash_path"] else None
+
+    # If a specific CLI override was provided (not equal to the auto-detect default), use it
+    local_default = get_default_gnucash_file() or Path("data.gnucash")
+    if cli_override and cli_override != local_default:
+        return cli_override
+
+    # Otherwise prefer the stored path from app_settings.json if it exists
+    if stored_gnucash and stored_gnucash.exists():
+        return stored_gnucash
+
+    return cli_override or stored_gnucash or local_default
 
 
 def _get_home_dir() -> Path:

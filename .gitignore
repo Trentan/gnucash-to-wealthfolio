@@ -39,3 +39,4 @@ docs/superpowers/
 .vscode/
 Thumbs.db
 .DS_Store
+config/app_settings.json

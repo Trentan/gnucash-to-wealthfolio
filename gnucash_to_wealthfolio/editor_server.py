@@ -17,11 +17,14 @@ from decimal import Decimal
 from gnucash_to_wealthfolio.backups import (
     backup_mapping_file,
     delete_backup,
+    get_mapping_backup_dir,
+    get_wealthfolio_backup_dir,
     list_backups,
     list_mapping_backups,
     prune_backups,
     prune_mapping_backups,
 )
+from gnucash_to_wealthfolio.config import save_app_settings
 from gnucash_to_wealthfolio.ids import deterministic_uuid, stable_id
 from gnucash_to_wealthfolio.mapper import (
     ROOT_COLORS,
@@ -606,7 +609,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
 
         if path.startswith("/api/backups/mappings/"):
             filename = urllib.parse.unquote(path[len("/api/backups/mappings/"):])
-            mapping_backup_dir = self.server.backup_dir / "mappings"
+            mapping_backup_dir = get_mapping_backup_dir(self.server.backup_dir)
             target_file = mapping_backup_dir / filename
             if target_file.exists():
                 try:
@@ -1375,7 +1378,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             self._send_error(f"Failed to import mapping: {e}", status=400)
 
     def _handle_get_mapping_backups(self):
-        mapping_backup_dir = self.server.backup_dir / "mappings"
+        mapping_backup_dir = get_mapping_backup_dir(self.server.backup_dir)
         backups = list_mapping_backups(mapping_backup_dir)
         total_bytes = sum(b.size_bytes for b in backups)
         self._send_json({
@@ -1393,7 +1396,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
 
     def _handle_post_mapping_backups_prune(self, payload: dict):
         keep_latest = payload.get("keep_latest", 20)
-        mapping_backup_dir = self.server.backup_dir / "mappings"
+        mapping_backup_dir = get_mapping_backup_dir(self.server.backup_dir)
         deleted = prune_mapping_backups(mapping_backup_dir, keep_latest=keep_latest)
         self._send_json({"status": "ok", "deleted": deleted})
 
@@ -1403,7 +1406,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             self._send_error("Filename is required to restore a mapping snapshot", status=400)
             return
 
-        mapping_backup_dir = self.server.backup_dir / "mappings"
+        mapping_backup_dir = get_mapping_backup_dir(self.server.backup_dir)
         target_snapshot = (mapping_backup_dir / filename).resolve()
         # Security check: must reside inside mapping_backup_dir
         if not target_snapshot.is_file() or not target_snapshot.is_relative_to(mapping_backup_dir.resolve()):
@@ -1439,7 +1442,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             self._send_error("Cannot create snapshot: mapping.json does not exist yet", status=400)
             return
 
-        mapping_backup_dir = self.server.backup_dir / "mappings"
+        mapping_backup_dir = get_mapping_backup_dir(self.server.backup_dir)
         mapping_backup_dir.mkdir(parents=True, exist_ok=True)
 
         name_suffix = payload.get("label", "").strip()
@@ -2167,16 +2170,23 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
             return getattr(self.server, "source_db", None) or getattr(self.server, "target_db", None)
         elif target == "mapping":
             return getattr(self.server, "mapping_path", None)
+        elif target == "backup_dir":
+            return getattr(self.server, "backup_dir", None)
         return None
 
     def _handle_post_paths_pick(self, payload: dict):
         target = payload.get("target", "gnucash")
         title = "Select File"
         filetypes = [("All Files", "*.*")]
+        is_directory = (target == "backup_dir")
 
         curr_path = self._get_target_path(target)
-        initialdir = str(curr_path.parent) if curr_path and curr_path.parent.exists() else None
-        initialfile = curr_path.name if curr_path else None
+        if target == "backup_dir":
+            initialdir = str(curr_path.resolve()) if curr_path and curr_path.exists() else None
+            initialfile = None
+        else:
+            initialdir = str(curr_path.parent) if curr_path and curr_path.parent.exists() else None
+            initialfile = curr_path.name if curr_path else None
 
         if target == "gnucash":
             title = "Select GnuCash Data File"
@@ -2187,32 +2197,54 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         elif target == "mapping":
             title = "Select Category & Account Mapping JSON"
             filetypes = [("JSON Files", "*.json"), ("All Files", "*.*")]
+        elif target == "backup_dir":
+            title = "Select Wealthfolio & Mapping Backups Root Folder"
 
         chosen_path = None
         try:
-            picker_code = (
-                "import json, sys\n"
-                "try:\n"
-                "    import tkinter as tk\n"
-                "    from tkinter import filedialog\n"
-                "    root = tk.Tk()\n"
-                "    root.withdraw()\n"
-                "    root.attributes('-topmost', True)\n"
-                "    args = json.loads(sys.argv[1])\n"
-                "    res = filedialog.askopenfilename(**args)\n"
-                "    root.destroy()\n"
-                "    print(res or '')\n"
-                "except Exception:\n"
-                "    print('')\n"
-            )
-            opts = {
-                "title": title,
-                "filetypes": filetypes,
-            }
-            if initialdir:
-                opts["initialdir"] = initialdir
-            if initialfile:
-                opts["initialfile"] = initialfile
+            if is_directory:
+                picker_code = (
+                    "import json, sys\n"
+                    "try:\n"
+                    "    import tkinter as tk\n"
+                    "    from tkinter import filedialog\n"
+                    "    root = tk.Tk()\n"
+                    "    root.withdraw()\n"
+                    "    root.attributes('-topmost', True)\n"
+                    "    args = json.loads(sys.argv[1])\n"
+                    "    res = filedialog.askdirectory(**args)\n"
+                    "    root.destroy()\n"
+                    "    print(res or '')\n"
+                    "except Exception:\n"
+                    "    print('')\n"
+                )
+                opts = {"title": title}
+                if initialdir:
+                    opts["initialdir"] = initialdir
+            else:
+                picker_code = (
+                    "import json, sys\n"
+                    "try:\n"
+                    "    import tkinter as tk\n"
+                    "    from tkinter import filedialog\n"
+                    "    root = tk.Tk()\n"
+                    "    root.withdraw()\n"
+                    "    root.attributes('-topmost', True)\n"
+                    "    args = json.loads(sys.argv[1])\n"
+                    "    res = filedialog.askopenfilename(**args)\n"
+                    "    root.destroy()\n"
+                    "    print(res or '')\n"
+                    "except Exception:\n"
+                    "    print('')\n"
+                )
+                opts = {
+                    "title": title,
+                    "filetypes": filetypes,
+                }
+                if initialdir:
+                    opts["initialdir"] = initialdir
+                if initialfile:
+                    opts["initialfile"] = initialfile
 
             sub = subprocess.run(
                 [sys.executable, "-c", picker_code, json.dumps(opts)],
@@ -2254,13 +2286,21 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
 
         resolved = str(target_path.resolve())
         try:
-            if sys.platform == "win32":
-                # explorer /select,<path> highlights the exact file in Windows Explorer
-                subprocess.Popen(["explorer.exe", f"/select,{resolved}"])
-            elif sys.platform == "darwin":
-                subprocess.Popen(["open", "-R", resolved])
+            if target == "backup_dir" or target_path.is_dir():
+                if sys.platform == "win32":
+                    subprocess.Popen(["explorer.exe", resolved])
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", resolved])
+                else:
+                    subprocess.Popen(["xdg-open", resolved])
             else:
-                subprocess.Popen(["xdg-open", str(target_path.parent)])
+                if sys.platform == "win32":
+                    # explorer /select,<path> highlights the exact file in Windows Explorer
+                    subprocess.Popen(["explorer.exe", f"/select,{resolved}"])
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", "-R", resolved])
+                else:
+                    subprocess.Popen(["xdg-open", str(target_path.parent)])
             self._send_json({"status": "ok", "opened": resolved})
         except Exception as e:
             self._send_error(f"Failed to open file location: {e}", status=500)
@@ -2269,8 +2309,11 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         gnucash_val = payload.get("gnucash")
         mapping_val = payload.get("mapping")
         wealthfolio_db_val = payload.get("wealthfolio_db")
+        backup_dir_val = payload.get("backup_dir")
 
         updated = {}
+        settings_to_persist = {}
+
         if gnucash_val:
             g_path = Path(gnucash_val).resolve()
             if not g_path.exists():
@@ -2283,20 +2326,56 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
                 self.server.gnucash_path = g_path
                 self.server._transactions_cache = None
                 updated["gnucash"] = str(g_path)
+                settings_to_persist["gnucash_path"] = str(g_path)
             except Exception as e:
                 self._send_error(f"Failed to parse GnuCash file: {e}", status=400)
                 return
 
         if mapping_val:
             m_path = Path(mapping_val).resolve()
+            # If a folder was selected instead of a file, point to mapping.json inside it
+            if m_path.is_dir():
+                m_path = m_path / "mapping.json"
             self.server.mapping_path = m_path
             self.server._transactions_cache = None
             updated["mapping"] = str(m_path)
+            settings_to_persist["mapping_path"] = str(m_path)
 
         if wealthfolio_db_val:
             w_path = Path(wealthfolio_db_val).resolve()
             self.server.source_db = w_path
             updated["wealthfolio_db"] = str(w_path)
+            settings_to_persist["wealthfolio_db_path"] = str(w_path)
+
+        if backup_dir_val:
+            b_path = Path(backup_dir_val).resolve()
+            b_path.mkdir(parents=True, exist_ok=True)
+            # Ensure subfolders exist
+            (b_path / "wealthfolio").mkdir(parents=True, exist_ok=True)
+            mappings_dir = b_path / "mappings"
+            mappings_dir.mkdir(parents=True, exist_ok=True)
+            self.server.backup_dir = b_path
+            updated["backup_dir"] = str(b_path)
+            settings_to_persist["backup_dir"] = str(b_path)
+
+            # If mapping was not explicitly overridden in this same request,
+            # automatically relocate the active mapping to <backup_dir>/mappings/mapping.json
+            if not mapping_val:
+                new_mapping_path = mappings_dir / "mapping.json"
+                old_mapping_path = self.server.mapping_path
+                # If target doesn't exist yet, copy current mapping over so settings are preserved
+                if not new_mapping_path.exists() and old_mapping_path and old_mapping_path.exists():
+                    try:
+                        shutil.copy2(old_mapping_path, new_mapping_path)
+                    except Exception as e:
+                        print(f"Warning: Failed to copy {old_mapping_path} to {new_mapping_path}: {e}")
+                self.server.mapping_path = new_mapping_path
+                self.server._transactions_cache = None
+                updated["mapping"] = str(new_mapping_path)
+                settings_to_persist["mapping_path"] = str(new_mapping_path)
+
+        if settings_to_persist:
+            save_app_settings(settings_to_persist)
 
         self._send_json({"status": "ok", "updated": updated})
 

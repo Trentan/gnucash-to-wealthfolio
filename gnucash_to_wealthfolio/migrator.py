@@ -311,6 +311,13 @@ def _migrate_alternative_assets_and_liabilities(
         else:
             final_quotes = [(d, val, None) for d, val in base_quotes]
 
+        # If asset/liability has reached a $0.00 valuation (sold or paid off), ensure a 0.00 quote exists for today
+        # so Wealthfolio does not flag stale valuation errors or treat the asset as missing current data.
+        if final_quotes:
+            last_quote_day, last_quote_val, _ = final_quotes[-1]
+            if last_quote_val == Decimal("0.00") and last_quote_day < today_str:
+                final_quotes.append((today_str, Decimal("0.00"), "Sold / Settled ($0 valuation carry-forward)"))
+
         quote_rows = []
         for day, val, note in final_quotes:
             val_str = f"{val:.2f}"
@@ -356,11 +363,13 @@ def run_migration(
     target_db: Path,
     backup_dir: Path,
 ) -> MigrationStats:
-    backup_dir.mkdir(parents=True, exist_ok=True)
+    from gnucash_to_wealthfolio.backups import get_wealthfolio_backup_dir
+    wf_backup_dir = get_wealthfolio_backup_dir(backup_dir)
+    wf_backup_dir.mkdir(parents=True, exist_ok=True)
     target_db.parent.mkdir(parents=True, exist_ok=True)
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_path = backup_dir / f"app_backup_{ts}.db"
+    backup_path = wf_backup_dir / f"app_backup_{ts}.db"
     if target_db.exists():
         target_db.unlink()
     src_conn = sqlite3.connect(str(source_db))
@@ -929,6 +938,120 @@ def run_migration(
             is_internal_transfer = has_pos_mig and has_neg_mig and len(ext_splits) == 0
 
             activity_date = f"{trn.date_posted}T00:00:00.000Z"
+
+            # Check for multi-split internal transfers (e.g. 1 deposit funded by 2 withdrawals, or vice versa)
+            # Wealthfolio's data consistency validator requires exact 1-to-1 transfer pairs matching by amount.
+            pos_m_splits = [s for s in mig_splits if s.value > Decimal("0.00")]
+            neg_m_splits = [s for s in mig_splits if s.value < Decimal("0.00")]
+            is_internal_multi = (
+                (is_internal_transfer or (has_pos_mig and has_neg_mig))
+                and len(mig_splits) > 2
+                and ((len(pos_m_splits) == 1 and len(neg_m_splits) > 1) or (len(neg_m_splits) == 1 and len(pos_m_splits) > 1))
+            )
+
+            if is_internal_multi:
+                # Pair the multiple splits against sub-splits of the single composite split
+                if len(pos_m_splits) == 1:
+                    composite_split = pos_m_splits[0]
+                    composite_acc = migrated_guids[composite_split.account_guid]
+                    for leg_idx, neg_sp in enumerate(neg_m_splits):
+                        neg_acc = migrated_guids[neg_sp.account_guid]
+                        leg_abs = abs(neg_sp.value)
+                        leg_amt_str = f"{leg_abs:.2f}"
+                        pair_id = f"gnc_xfer_{trn.guid}_{leg_idx}"
+                        
+                        # 1. Outflow leg (TRANSFER_OUT)
+                        neg_act_id = deterministic_uuid("gnucash_split", neg_sp.guid)
+                        neg_notes = _format_notes(trn, neg_sp)
+                        neg_meta = json.dumps({
+                            "gnucash_trn_guid": trn.guid,
+                            "gnucash_split_guid": neg_sp.guid,
+                            "reconciled": neg_sp.reconciled_state,
+                            "flow": {"is_external": False},
+                            "transfer": {"kind": "internal_cash", "source": "wealthfolio"},
+                        })
+                        activities_rows.append((
+                            neg_act_id, neg_acc.wf_account_id, None, "TRANSFER_OUT", None, None, None,
+                            "POSTED", activity_date, None, "0", "0", leg_amt_str, "0", None, "AUD", None,
+                            neg_notes, neg_meta, "gnucash", neg_sp.guid, pair_id, f"gnucash:{neg_sp.guid}",
+                            None, 0, 0, now, now
+                        ))
+                        xfer_neg_asgn = stable_id("activity_taxonomy_assignment", [neg_act_id, "spending_categories"])
+                        assignment_rows.append((
+                            xfer_neg_asgn, neg_act_id, "spending_categories", "cat_gnc_transfers_internal", 10000, "manual", now, now
+                        ))
+
+                        # 2. Inflow leg (TRANSFER_IN)
+                        pos_act_id = deterministic_uuid("gnucash_split_sub", f"{composite_split.guid}:{leg_idx}")
+                        pos_notes = _format_notes(trn, composite_split)
+                        pos_meta = json.dumps({
+                            "gnucash_trn_guid": trn.guid,
+                            "gnucash_split_guid": composite_split.guid,
+                            "reconciled": composite_split.reconciled_state,
+                            "flow": {"is_external": False},
+                            "transfer": {"kind": "internal_cash", "source": "wealthfolio"},
+                        })
+                        activities_rows.append((
+                            pos_act_id, composite_acc.wf_account_id, None, "TRANSFER_IN", None, None, None,
+                            "POSTED", activity_date, None, "0", "0", leg_amt_str, "0", None, "AUD", None,
+                            pos_notes, pos_meta, "gnucash", f"{composite_split.guid}:{leg_idx}", pair_id, f"gnucash:{composite_split.guid}:{leg_idx}",
+                            None, 0, 0, now, now
+                        ))
+                        xfer_pos_asgn = stable_id("activity_taxonomy_assignment", [pos_act_id, "spending_categories"])
+                        assignment_rows.append((
+                            xfer_pos_asgn, pos_act_id, "spending_categories", "cat_gnc_transfers_internal", 10000, "manual", now, now
+                        ))
+                else: # len(neg_m_splits) == 1
+                    composite_split = neg_m_splits[0]
+                    composite_acc = migrated_guids[composite_split.account_guid]
+                    for leg_idx, pos_sp in enumerate(pos_m_splits):
+                        pos_acc = migrated_guids[pos_sp.account_guid]
+                        leg_abs = pos_sp.value
+                        leg_amt_str = f"{leg_abs:.2f}"
+                        pair_id = f"gnc_xfer_{trn.guid}_{leg_idx}"
+                        
+                        # 1. Inflow leg (TRANSFER_IN)
+                        pos_act_id = deterministic_uuid("gnucash_split", pos_sp.guid)
+                        pos_notes = _format_notes(trn, pos_sp)
+                        pos_meta = json.dumps({
+                            "gnucash_trn_guid": trn.guid,
+                            "gnucash_split_guid": pos_sp.guid,
+                            "reconciled": pos_sp.reconciled_state,
+                            "flow": {"is_external": False},
+                            "transfer": {"kind": "internal_cash", "source": "wealthfolio"},
+                        })
+                        activities_rows.append((
+                            pos_act_id, pos_acc.wf_account_id, None, "TRANSFER_IN", None, None, None,
+                            "POSTED", activity_date, None, "0", "0", leg_amt_str, "0", None, "AUD", None,
+                            pos_notes, pos_meta, "gnucash", pos_sp.guid, pair_id, f"gnucash:{pos_sp.guid}",
+                            None, 0, 0, now, now
+                        ))
+                        xfer_pos_asgn = stable_id("activity_taxonomy_assignment", [pos_act_id, "spending_categories"])
+                        assignment_rows.append((
+                            xfer_pos_asgn, pos_act_id, "spending_categories", "cat_gnc_transfers_internal", 10000, "manual", now, now
+                        ))
+
+                        # 2. Outflow leg (TRANSFER_OUT)
+                        neg_act_id = deterministic_uuid("gnucash_split_sub", f"{composite_split.guid}:{leg_idx}")
+                        neg_notes = _format_notes(trn, composite_split)
+                        neg_meta = json.dumps({
+                            "gnucash_trn_guid": trn.guid,
+                            "gnucash_split_guid": composite_split.guid,
+                            "reconciled": composite_split.reconciled_state,
+                            "flow": {"is_external": False},
+                            "transfer": {"kind": "internal_cash", "source": "wealthfolio"},
+                        })
+                        activities_rows.append((
+                            neg_act_id, composite_acc.wf_account_id, None, "TRANSFER_OUT", None, None, None,
+                            "POSTED", activity_date, None, "0", "0", leg_amt_str, "0", None, "AUD", None,
+                            neg_notes, neg_meta, "gnucash", f"{composite_split.guid}:{leg_idx}", pair_id, f"gnucash:{composite_split.guid}:{leg_idx}",
+                            None, 0, 0, now, now
+                        ))
+                        xfer_neg_asgn = stable_id("activity_taxonomy_assignment", [neg_act_id, "spending_categories"])
+                        assignment_rows.append((
+                            xfer_neg_asgn, neg_act_id, "spending_categories", "cat_gnc_transfers_internal", 10000, "manual", now, now
+                        ))
+                continue
 
             for s_m in mig_splits:
                 acc_entry = migrated_guids[s_m.account_guid]

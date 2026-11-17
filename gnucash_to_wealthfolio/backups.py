@@ -13,29 +13,50 @@ class BackupInfo:
     created_ts: float
 
 
+def get_wealthfolio_backup_dir(backup_dir: Path) -> Path:
+    """Return the designated subdirectory for Wealthfolio database backups."""
+    return backup_dir / "wealthfolio"
+
+
+def get_mapping_backup_dir(backup_dir: Path) -> Path:
+    """Return the designated subdirectory for Mapping JSON backups."""
+    return backup_dir / "mappings"
+
+
 def list_backups(backup_dir: Path) -> list[BackupInfo]:
-    """List all SQLite database backup files in backup_dir, sorted newest first."""
+    """List all SQLite database backup files, sorted newest first.
+    Checks <backup_dir>/wealthfolio/ as well as <backup_dir> for backwards compatibility.
+    """
     if not backup_dir.exists():
         return []
 
+    # Directories to inspect: subfolder first, then root backup_dir
+    wf_sub = get_wealthfolio_backup_dir(backup_dir)
+    search_dirs = [wf_sub] if wf_sub.exists() else []
+    search_dirs.append(backup_dir)
+
     results: list[BackupInfo] = []
-    for item in backup_dir.iterdir():
-        if item.is_file() and item.suffix.lower() == ".db":
-            try:
-                stat = item.stat()
-                created_dt = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
-                results.append(
-                    BackupInfo(
-                        filename=item.name,
-                        path=item,
-                        size_bytes=stat.st_size,
-                        size_mb=round(stat.st_size / (1024 * 1024), 2),
-                        created_at=created_dt.strftime("%Y-%m-%d %H:%M:%S UTC"),
-                        created_ts=stat.st_mtime,
+    seen_filenames = set()
+
+    for s_dir in search_dirs:
+        for item in s_dir.iterdir():
+            if item.is_file() and item.suffix.lower() == ".db" and item.name not in seen_filenames:
+                try:
+                    stat = item.stat()
+                    created_dt = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
+                    results.append(
+                        BackupInfo(
+                            filename=item.name,
+                            path=item,
+                            size_bytes=stat.st_size,
+                            size_mb=round(stat.st_size / (1024 * 1024), 2),
+                            created_at=created_dt.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                            created_ts=stat.st_mtime,
+                        )
                     )
-                )
-            except OSError:
-                continue
+                    seen_filenames.add(item.name)
+                except OSError:
+                    continue
 
     results.sort(key=lambda b: b.created_ts, reverse=True)
     return results
@@ -68,7 +89,7 @@ def prune_backups(backup_dir: Path, keep_latest: int = 3) -> list[str]:
 
 
 def delete_backup(backup_dir: Path, filename: str) -> bool:
-    """Safely delete a specific backup file in backup_dir.
+    """Safely delete a specific backup file in backup_dir or its wealthfolio subfolder.
     Returns True if deleted, False otherwise.
     """
     if not filename or "/" in filename or "\\" in filename or ".." in filename:
@@ -77,25 +98,30 @@ def delete_backup(backup_dir: Path, filename: str) -> bool:
     if not filename.lower().endswith(".db"):
         return False
 
-    target = (backup_dir / filename).resolve()
-    # Path traversal protection
-    try:
-        resolved_dir = backup_dir.resolve()
-        target.relative_to(resolved_dir)
-    except ValueError:
-        return False
+    # Check both <backup_dir>/wealthfolio/ and <backup_dir>
+    wf_sub = get_wealthfolio_backup_dir(backup_dir)
+    possible_targets = [wf_sub / filename, backup_dir / filename]
 
-    if not target.exists() or not target.is_file():
-        return False
+    for candidate in possible_targets:
+        target = candidate.resolve()
+        # Path traversal protection
+        try:
+            resolved_dir = backup_dir.resolve()
+            target.relative_to(resolved_dir)
+        except ValueError:
+            continue
 
-    try:
-        target.unlink()
-        for sidecar in (target.with_suffix(".db-wal"), target.with_suffix(".db-shm")):
-            if sidecar.exists():
-                sidecar.unlink()
-        return True
-    except OSError:
-        return False
+        if target.exists() and target.is_file():
+            try:
+                target.unlink()
+                for sidecar in (target.with_suffix(".db-wal"), target.with_suffix(".db-shm")):
+                    if sidecar.exists():
+                        sidecar.unlink()
+                return True
+            except OSError:
+                return False
+
+    return False
 
 
 def list_mapping_backups(mapping_backup_dir: Path) -> list[BackupInfo]:

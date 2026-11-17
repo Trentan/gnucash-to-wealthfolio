@@ -5,10 +5,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 from gnucash_to_wealthfolio.config import (
+    DEFAULT_BACKUP_DIR,
+    DEFAULT_MAPPING_PATH,
+    get_active_backup_dir,
+    get_active_mapping_path,
+    get_default_gnucash_file,
     get_default_wealthfolio_db_path,
     get_wealthfolio_executable_path,
-    get_default_gnucash_file,
-    DEFAULT_MAPPING_PATH,
+    load_app_settings,
+    save_app_settings,
 )
 
 
@@ -38,6 +43,28 @@ class TestConfig(unittest.TestCase):
         with patch.object(Path, "glob", return_value=[Path("test_book.gnucash")]):
             detected = get_default_gnucash_file(search_dir=Path("."))
             self.assertEqual(detected, Path("test_book.gnucash"))
+
+    def test_app_settings_persistence_and_resolution(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            settings_file = Path(tmpdir) / "app_settings.json"
+            self.assertEqual(load_app_settings(settings_file), {})
+
+            save_app_settings({"backup_dir": "G:\\Drive\\Backups"}, settings_file)
+            loaded = load_app_settings(settings_file)
+            self.assertEqual(loaded.get("backup_dir"), "G:\\Drive\\Backups")
+
+            # Test resolution with mock settings
+            with patch("gnucash_to_wealthfolio.config.load_app_settings", return_value={"backup_dir": "G:\\Drive\\Backups", "mapping_path": "C:\\custom\\mapping.json"}):
+                # When no CLI override or default provided, it uses persistent setting
+                self.assertEqual(get_active_backup_dir(DEFAULT_BACKUP_DIR), Path("G:\\Drive\\Backups"))
+                self.assertEqual(get_active_mapping_path(DEFAULT_MAPPING_PATH), Path("C:\\custom\\mapping.json"))
+
+                # When explicit CLI override provided, CLI takes precedence
+                cli_custom_backup = Path("D:\\CustomBackup")
+                self.assertEqual(get_active_backup_dir(cli_custom_backup), cli_custom_backup)
+                cli_custom_mapping = Path("D:\\CustomMapping.json")
+                self.assertEqual(get_active_mapping_path(cli_custom_mapping), cli_custom_mapping)
 
 
 if __name__ == "__main__":

@@ -52,10 +52,11 @@
     .header-stats strong { color: var(--text); }
 
     .container {
-      max-width: min(1840px, 98vw);
-      width: 98%;
-      margin: 1.25rem auto;
-      padding: 0 0.5rem;
+      max-width: 100%;
+      width: 100%;
+      margin: 1rem 0;
+      padding: 0 1.25rem;
+      box-sizing: border-box;
     }
 
     /* Warning Banner */
@@ -158,12 +159,12 @@
       -webkit-overflow-scrolling: touch;
       width: 100%;
     }
-    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.875rem; min-width: 1280px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.84rem; min-width: 100%; }
     th {
       background: #111827;
       color: var(--text-muted);
       font-weight: 600;
-      padding: 0.75rem 0.85rem;
+      padding: 0.55rem 0.65rem;
       border-bottom: 1px solid var(--card-border);
       cursor: pointer;
       user-select: none;
@@ -175,7 +176,7 @@
     th.sorted .sort-icon { opacity: 1; color: var(--primary); }
 
     td {
-      padding: 0.65rem 0.85rem;
+      padding: 0.45rem 0.6rem;
       border-bottom: 1px solid var(--card-border);
       vertical-align: middle;
     }
@@ -248,10 +249,11 @@
       background: var(--input-bg);
       border: 1px solid var(--input-border);
       color: var(--text);
-      padding: 0.35rem 0.6rem;
+      padding: 0.25rem 0.5rem;
       border-radius: 6px;
-      font-size: 0.85rem;
+      font-size: 0.825rem;
       width: 100%;
+      box-sizing: border-box;
     }
     .subcat-input:focus, .select-parent:focus { outline: none; border-color: var(--primary); }
 
@@ -580,6 +582,12 @@
         <button class="btn-secondary" onclick="openFileLocation('mapping')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Reveal mapping.json folder location in Windows Explorer">📂</button>
         <button class="btn-secondary" onclick="browseFile('mapping')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Select a different mapping JSON">Change...</button>
       </div>
+      <div style="display: flex; align-items: center; gap: 0.35rem;" title="Designated Backups Root Folder (for Wealthfolio DB backups &amp; mapping snapshots)">
+        <span>📁 Backups Folder:</span>
+        <code id="path-backup-dir" style="color: #fdba74; font-family: monospace; font-size: 0.75rem; word-break: break-all;">(Loading...)</code>
+        <button class="btn-secondary" onclick="openFileLocation('backup_dir')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Reveal backups folder in Windows Explorer">📂</button>
+        <button class="btn-secondary" onclick="browseFile('backup_dir')" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;" title="Select a different backup folder (e.g. Google Drive)">Change...</button>
+      </div>
     </div>
     <div style="display: flex; align-items: center; gap: 0.5rem;">
       <span style="color: #94a3b8; font-size: 0.75rem;">Snapshots:</span>
@@ -875,14 +883,14 @@
         <table>
           <thead>
             <tr>
-              <th id="th-m-path" onclick="sortMappings('gnc_path')" style="width: 27%;">GnuCash Account Path <span class="sort-icon">↕</span></th>
-              <th id="th-m-tx" onclick="sortMappings('tx_count')" style="width: 7%; text-align: center;">Txs <span class="sort-icon">↕</span></th>
-              <th id="th-m-vol" onclick="sortMappings('total_amount')" style="width: 9%; text-align: right;">Total Vol <span class="sort-icon">↕</span></th>
-              <th id="th-m-type" onclick="sortMappings('activity_type')" style="width: 11%; text-align: center;">Type <span class="sort-icon">↕</span></th>
-              <th id="th-m-bg" onclick="sortMappings('budget_group')" style="width: 12%; text-align: center;">Spending <span class="sort-icon">↕</span></th>
-              <th id="th-m-parent" onclick="sortMappings('parent_id')" style="width: 16%;">Wealthfolio Category <span class="sort-icon">↕</span></th>
-              <th id="th-m-name" onclick="sortMappings('category_name')" style="width: 12%;">Subcategory Name <span class="sort-icon">↕</span></th>
-              <th id="th-m-status" onclick="sortMappings('status')" style="width: 6%; text-align: center;">Status <span class="sort-icon">↕</span></th>
+              <th id="th-m-path" onclick="sortMappings('gnc_path')" style="min-width: 280px;">GnuCash Account Path <span class="sort-icon">↕</span></th>
+              <th id="th-m-tx" onclick="sortMappings('tx_count')" style="width: 70px; text-align: center;">Txs <span class="sort-icon">↕</span></th>
+              <th id="th-m-vol" onclick="sortMappings('total_amount')" style="width: 110px; text-align: right;">Total Vol <span class="sort-icon">↕</span></th>
+              <th id="th-m-type" onclick="sortMappings('activity_type')" style="width: 110px; text-align: center;">Type <span class="sort-icon">↕</span></th>
+              <th id="th-m-bg" onclick="sortMappings('budget_group')" style="width: 115px; text-align: center;">Spending <span class="sort-icon">↕</span></th>
+              <th id="th-m-parent" onclick="sortMappings('parent_id')" style="width: 320px; min-width: 250px;">Wealthfolio Category <span class="sort-icon">↕</span></th>
+              <th id="th-m-name" onclick="sortMappings('category_name')" style="width: 280px; min-width: 220px;">Subcategory Name <span class="sort-icon">↕</span></th>
+              <th id="th-m-status" onclick="sortMappings('status')" style="width: 85px; text-align: center;">Status <span class="sort-icon">↕</span></th>
             </tr>
           </thead>
           <tbody id="mappings-tbody">
@@ -1460,6 +1468,12 @@
           const mapStr = state.paths.mapping || 'config/mapping.json';
           pMap.textContent = mapStr;
           pMap.title = mapStr;
+        }
+        const pBackup = document.getElementById('path-backup-dir');
+        if (pBackup) {
+          const bkpStr = state.paths.backup_dir || 'backups';
+          pBackup.textContent = bkpStr;
+          pBackup.title = bkpStr;
         }
 
         document.getElementById('stat-accounts').textContent = data.book?.accounts_count || 0;
@@ -3386,6 +3400,7 @@
           showToast(`Successfully updated and loaded ${target}!`);
           await loadState();
           await fetchTransactions();
+          await loadMappingBackups();
         } else {
           alert('Failed to update path: ' + data.error);
         }

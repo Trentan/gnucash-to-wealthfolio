@@ -9,6 +9,9 @@ from gnucash_to_wealthfolio.config import (
     DEFAULT_MAPPING_PATH,
     DEFAULT_REPORT_PATH,
     DEFAULT_TARGET_DB_PATH,
+    get_active_backup_dir,
+    get_active_gnucash_path,
+    get_active_mapping_path,
     get_default_gnucash_file,
     get_default_wealthfolio_db_path,
     get_wealthfolio_executable_path,
@@ -172,9 +175,11 @@ def _do_install(migrated_db: Path, live_db: Path, backup_dir: Path, launch: bool
     except Exception:
         pass
 
-    backup_dir.mkdir(parents=True, exist_ok=True)
+    from gnucash_to_wealthfolio.backups import get_wealthfolio_backup_dir
+    wf_backup_dir = get_wealthfolio_backup_dir(backup_dir)
+    wf_backup_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup_file = backup_dir / f"app_pre_install_{ts}.db"
+    backup_file = wf_backup_dir / f"app_pre_install_{ts}.db"
 
     # Backup the live DB before overwriting
     if live_db.exists():
@@ -285,6 +290,14 @@ def main(argv: list[str] | None = None) -> int:
     p_sync.add_argument("--no-browser", action="store_true", default=False)
 
     args = parser.parse_args(argv)
+
+    # Resolve active persistent defaults if CLI argument was left as default
+    if hasattr(args, "backup_dir"):
+        args.backup_dir = get_active_backup_dir(args.backup_dir)
+    if hasattr(args, "mapping"):
+        args.mapping = get_active_mapping_path(args.mapping)
+    if hasattr(args, "gnucash"):
+        args.gnucash = get_active_gnucash_path(args.gnucash)
 
     if args.cmd == "edit":
         return _do_edit(args)
